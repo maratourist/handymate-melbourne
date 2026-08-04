@@ -1,0 +1,2701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HandyMate — Financeiro</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #1a1a1a;
+    --navy-light: #333333;
+    --amber: #e6821e;
+    --amber-dark: #c76c12;
+    --bg: #f7f5f2;
+    --card: #ffffff;
+    --border: #e5e0d8;
+    --text: #1a1a1a;
+    --muted: #6b6560;
+    --green: #2f7d4f;
+    --red: #b8442f;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  /* ---------- Login screen ---------- */
+  #login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .login-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 8px 30px rgba(26,26,26,0.10);
+  }
+  .login-box .logo {
+    display: block;
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 20px;
+    box-shadow: 0 0 0 3px var(--amber), 0 4px 14px rgba(28,43,58,0.18);
+  }
+  .login-box h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    text-align: center;
+    color: var(--navy);
+  }
+  .login-box .tag {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 28px;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--navy-light);
+  }
+  input, select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    margin-bottom: 16px;
+    background: #fbfdfe;
+    font-family: inherit;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--amber);
+    background: #fff;
+  }
+  button {
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary {
+    width: 100%;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    padding: 12px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-primary:hover { background: var(--navy-light); }
+  .btn-primary:active { transform: scale(0.98); }
+  #login-error {
+    color: var(--red);
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+
+  /* ---------- App shell ---------- */
+  #app { display: none; }
+  header.topbar {
+    background: var(--navy);
+    color: #fff;
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header.topbar h1 {
+    font-size: 18px;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  header.topbar h1 span { color: var(--amber); }
+  .logout-btn {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .logout-btn:hover { background: rgba(255,255,255,0.22); }
+
+  main {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .section-header h2 {
+    font-size: 20px;
+    margin: 0;
+    color: var(--navy);
+  }
+  .filters-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .btn-amber {
+    background: var(--amber);
+    color: #fff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-amber:hover { background: var(--amber-dark); }
+  .btn-amber:active { transform: scale(0.98); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { text-align: center; vertical-align: middle; }
+  th {
+    text-align: center;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #faf9f6;
+  }
+  td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #faf9f6; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .empty-state {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .row-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 4px 18px 4px 10px;
+  }
+  .row-actions button {
+    background: #f0efec;
+    border: none;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--navy);
+    padding: 5px 14px;
+    border-radius: 999px;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+    width: 84px;
+  }
+  .row-actions button:hover { background: #e3e1dc; transform: translateY(-1px); }
+  .row-actions button.delete { background: #fbe9e6; color: var(--red); }
+  .row-actions button.delete:hover { background: #f7d9d3; }
+  .row-actions button.pdf-btn { background: #fbe6d1; color: var(--amber-dark); }
+  .row-actions button.pdf-btn:hover { background: #d3f0eb; }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(28,43,58,0.45);
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal.wide { max-width: 640px; }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  .modal h3 {
+    margin: 0 0 20px;
+    color: var(--navy);
+    font-size: 18px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .btn-secondary {
+    flex: 1;
+    background: #f0efec;
+    border: none;
+    padding: 11px;
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--navy);
+    font-weight: 600;
+    transition: background 0.15s;
+  }
+  .btn-secondary:hover { background: #e3e1dc; }
+  .modal-actions .btn-amber { flex: 1; }
+
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--navy);
+    color: #fff;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.25s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Home menu (cards) ---------- */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 18px;
+  }
+  .menu-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 26px 20px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-family: inherit;
+  }
+  .menu-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 26px rgba(26,26,26,0.10);
+  }
+  .menu-card:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+  .menu-card:disabled:hover {
+    border-color: var(--border);
+    transform: none;
+    box-shadow: none;
+  }
+  .menu-card .icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fbe6d1;
+    color: var(--amber-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+  .menu-card h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--navy);
+  }
+  .menu-card p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .menu-card .badge {
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--amber-dark);
+    background: #fbe6d1;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .menu-card .badge.soon {
+    color: var(--muted);
+    background: #eeece7;
+  }
+
+  .back-link {
+    background: #f0efec;
+    border: none;
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.15s;
+  }
+  .back-link:hover { background: #e3e1dc; }
+
+  /* ---------- Dashboard ---------- */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    border-radius: 18px;
+    padding: 20px;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .kpi-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+  }
+  .kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .kpi-balance { background: linear-gradient(135deg, #1a1a1a, #3a3a3a); }
+  .kpi-receivable { background: linear-gradient(135deg, #e6821e, #c76c12); }
+  .kpi-overdue { background: linear-gradient(135deg, #b8442f, #8f3323); }
+  .kpi-payable { background: linear-gradient(135deg, #6b6560, #4a4640); }
+
+  .dash-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+  }
+  .dash-card h3 {
+    margin: 0 0 16px;
+    font-size: 15px;
+    color: var(--navy);
+  }
+  .dash-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 720px) {
+    .dash-grid-2 { grid-template-columns: 1fr; }
+  }
+
+  .rank-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-medal { font-size: 15px; margin-right: 6px; }
+  .rank-value { font-weight: 700; color: var(--navy); }
+
+  .reco-gauge-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+  }
+  .reco-gauge-pct {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--amber-dark);
+  }
+  .reco-bar-bg {
+    width: 100%;
+    height: 12px;
+    background: #f0efec;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .reco-bar-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 999px;
+    transition: width 0.4s;
+  }
+
+  .status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 4px 12px;
+    border-radius: 999px;
+  }
+  .status-draft { background: #eaf1f6; color: var(--muted); }
+  .status-sent { background: #e3e1dc; color: var(--navy); }
+  .status-paid { background: #fbe6d1; color: var(--amber-dark); }
+  .status-overdue { background: #fbe4de; color: var(--red); }
+  .status-cancelled { background: #eaf1f6; color: var(--muted); text-decoration: line-through; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-screen">
+  <div class="login-box">
+    <img src="logo.jpg" alt="HandyMate Melbourne" class="logo">
+    <h1>HandyMate</h1>
+    <p class="tag">Painel financeiro</p>
+    <form id="login-form">
+      <label for="email">Email</label>
+      <input type="email" id="email" required autocomplete="username">
+      <label for="password">Senha</label>
+      <input type="password" id="password" required autocomplete="current-password">
+      <button type="submit" class="btn-primary">Entrar</button>
+      <p id="login-error"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <header class="topbar">
+    <h1>Handy<span>Mate</span> · Financeiro</h1>
+    <button class="logout-btn" id="logout-btn">Sair</button>
+  </header>
+
+  <main>
+    <!-- ===== HOME: menu de cards ===== -->
+    <div class="view active" id="view-home">
+      <div class="section-header">
+        <h2>Menu principal</h2>
+      </div>
+      <div class="menu-grid">
+        <button class="menu-card" id="card-clients">
+          <div class="icon">👥</div>
+          <h3>Clientes</h3>
+          <p>Cadastro e manutenção da carteira de clientes.</p>
+        </button>
+
+        <button class="menu-card" id="card-invoices">
+          <div class="icon">🧾</div>
+          <h3>Invoices</h3>
+          <p>Criar, enviar e acompanhar status de invoices (rascunho, enviada, paga, atrasada).</p>
+        </button>
+
+        <button class="menu-card" id="card-expenses">
+          <div class="icon">💸</div>
+          <h3>Despesas</h3>
+          <p>Lançamento de custos e fornecedores do negócio.</p>
+        </button>
+
+        <button class="menu-card" id="card-bank">
+          <div class="icon">🏦</div>
+          <h3>Banco / Conciliação</h3>
+          <p>Importe o extrato (CSV) ou lance manual, e vincule cada entrada/saída à invoice ou despesa correspondente.</p>
+        </button>
+
+        <button class="menu-card" id="card-investments">
+          <div class="icon">📈</div>
+          <h3>Investimentos</h3>
+          <p>Acompanhamento de aplicações e retorno do capital do negócio.</p>
+        </button>
+
+        <button class="menu-card" id="card-dashboard">
+          <div class="icon">📊</div>
+          <h3>Dashboard</h3>
+          <p>Fluxo de caixa, contas a receber/pagar e visão geral financeira.</p>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== VIEW: Clientes ===== -->
+    <div class="view" id="view-clients">
+      <button class="back-link" id="back-to-home">← Menu principal</button>
+      <div class="section-header">
+        <h2>Clientes</h2>
+        <button class="btn-amber" id="new-client-btn">+ Novo cliente</button>
+      </div>
+      <div class="filters-row">
+        <input type="text" id="client-name-search" placeholder="Buscar por nome..." style="width:200px; margin:0;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color: var(--muted); margin:0;">
+          <input type="checkbox" id="show-inactive-clients" style="width:auto; margin:0;">
+          Mostrar inativos
+        </label>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Tipo</th>
+              <th>Email</th>
+              <th>Telefone</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="clients-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none;">
+          Nenhum cliente cadastrado ainda.<br>Clique em "+ Novo cliente" para começar.
+        </div>
+      </div>
+    </div>
+    <!-- ===== VIEW: Invoices ===== -->
+    <div class="view" id="view-invoices">
+      <button class="back-link" id="back-to-home-2">← Menu principal</button>
+      <div class="section-header">
+        <h2>Invoices</h2>
+        <button class="btn-amber" id="new-invoice-btn">+ Nova invoice</button>
+      </div>
+      <div class="filters-row">
+        <input type="text" id="invoice-client-search" placeholder="Buscar por cliente..." style="width:200px; margin:0;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color: var(--muted); margin:0;">
+          <input type="checkbox" id="show-all-invoices" style="width:auto; margin:0;">
+          Mostrar todas (inclui pagas/canceladas)
+        </label>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:15%;">Número</th>
+              <th style="width:15%;">Cliente</th>
+              <th style="width:19%;">Descrição</th>
+              <th style="width:11%;">Valor</th>
+              <th style="width:10%;">Status</th>
+              <th style="width:10%;">Vencimento</th>
+              <th style="width:20%; white-space:nowrap;"></th>
+            </tr>
+          </thead>
+          <tbody id="invoices-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="invoices-empty-state" style="display:none;">
+          Nenhuma invoice criada ainda.<br>Clique em "+ Nova invoice" para começar.
+        </div>
+      </div>
+    </div>
+    <!-- ===== VIEW: Despesas ===== -->
+    <div class="view" id="view-expenses">
+      <button class="back-link" id="back-to-home-3">← Menu principal</button>
+      <div class="section-header">
+        <h2>Despesas</h2>
+        <button class="btn-amber" id="new-expense-btn">+ Nova despesa</button>
+      </div>
+      <div class="filters-row">
+        <input type="text" id="expense-description-search" placeholder="Buscar descrição..." style="width:170px; margin:0;">
+        <input type="text" id="expense-client-search" placeholder="Buscar cliente..." style="width:160px; margin:0;">
+        <input type="text" id="expense-supplier-search" placeholder="Buscar fornecedor..." style="width:160px; margin:0;">
+        <select id="expense-category-filter" style="width:190px; margin:0;">
+          <option value="">Todas as categorias</option>
+          <option value="Materiais e Ferramentas">Materiais e Ferramentas</option>
+          <option value="Combustível e Transporte">Combustível e Transporte</option>
+          <option value="Mão de obra / Subcontratados">Mão de obra / Subcontratados</option>
+          <option value="Seguro">Seguro</option>
+          <option value="Marketing e Publicidade">Marketing e Publicidade</option>
+          <option value="Contabilidade e Taxas">Contabilidade e Taxas</option>
+          <option value="Outros">Outros</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:22%;">Descrição</th>
+              <th style="width:14%;">Categoria</th>
+              <th style="width:12%;">Fornecedor</th>
+              <th style="width:14%;">Cliente</th>
+              <th style="width:10%;">Valor</th>
+              <th style="width:10%;">Data</th>
+              <th style="width:9%;">Comprovante</th>
+              <th style="width:9%;"></th>
+            </tr>
+          </thead>
+          <tbody id="expenses-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="expenses-empty-state" style="display:none;">
+          Nenhuma despesa lançada ainda.<br>Clique em "+ Nova despesa" para começar.
+        </div>
+      </div>
+    </div>
+    <!-- ===== VIEW: Banco / Conciliação ===== -->
+    <div class="view" id="view-bank">
+      <button class="back-link" id="back-to-home-4">← Menu principal</button>
+      <div class="section-header">
+        <h2>Banco / Conciliação</h2>
+        <div style="display:flex; gap:10px;">
+          <button class="btn-secondary" id="import-csv-btn" style="width:auto; flex:none;">Importar CSV</button>
+          <button class="btn-amber" id="new-transaction-btn">+ Nova transação</button>
+        </div>
+      </div>
+      <div class="filters-row">
+        <input type="text" id="bank-search" placeholder="Buscar descrição..." style="width:200px; margin:0;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color: var(--muted); margin:0;">
+          <input type="checkbox" id="show-only-unlinked" style="width:auto; margin:0;">
+          Mostrar só não vinculadas
+        </label>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:12%;">Data</th>
+              <th style="width:28%;">Descrição</th>
+              <th style="width:12%;">Valor</th>
+              <th style="width:10%;">Tipo</th>
+              <th style="width:22%;">Vínculo</th>
+              <th style="width:16%;"></th>
+            </tr>
+          </thead>
+          <tbody id="bank-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="bank-empty-state" style="display:none;">
+          Nenhuma transação lançada ainda.<br>Clique em "+ Nova transação" ou "Importar CSV" para começar.
+        </div>
+      </div>
+    </div>
+    <!-- ===== VIEW: Dashboard Submenu ===== -->
+    <div class="view" id="view-dashboard-menu">
+      <button class="back-link" id="back-to-home-5">← Menu principal</button>
+      <div class="section-header">
+        <h2>Dashboard</h2>
+      </div>
+      <div class="menu-grid">
+        <button class="menu-card" id="card-dash-general">
+          <div class="icon">📊</div>
+          <h3>Geral</h3>
+          <p>Visão consolidada: KPIs, fluxo de caixa, despesas por categoria, rankings e conciliação.</p>
+        </button>
+        <button class="menu-card" id="card-dash-client">
+          <div class="icon">👤</div>
+          <h3>Fluxo por Cliente</h3>
+          <p>Escolha um cliente e veja as entradas e saídas já conciliadas com o banco, receita real, custo real e lucro líquido.</p>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== VIEW: Dashboard Geral ===== -->
+    <div class="view" id="view-dashboard">
+      <button class="back-link" id="back-to-dash-menu-1">← Dashboard</button>
+      <div class="section-header">
+        <h2>Dashboard · Geral</h2>
+        <select id="dashboard-month" style="width:200px; margin:0;"></select>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-balance">
+          <span class="kpi-label">Saldo do mês</span>
+          <span class="kpi-value" id="kpi-balance">—</span>
+        </div>
+        <div class="kpi-card kpi-receivable">
+          <span class="kpi-label">A receber</span>
+          <span class="kpi-value" id="kpi-receivable">—</span>
+        </div>
+        <div class="kpi-card kpi-overdue">
+          <span class="kpi-label">Atrasado</span>
+          <span class="kpi-value" id="kpi-overdue">—</span>
+        </div>
+        <div class="kpi-card kpi-payable">
+          <span class="kpi-label">Gasto no mês</span>
+          <span class="kpi-value" id="kpi-payable">—</span>
+        </div>
+      </div>
+
+      <!-- Fluxo de caixa -->
+      <div class="dash-card">
+        <h3>Fluxo de caixa (últimos 6 meses)</h3>
+        <canvas id="chart-cashflow" height="90"></canvas>
+      </div>
+
+      <div class="dash-grid-2">
+        <div class="dash-card">
+          <h3>Despesas por categoria</h3>
+          <canvas id="chart-expenses-category"></canvas>
+        </div>
+        <div class="dash-card">
+          <h3>Faturamento por tipo de cliente</h3>
+          <canvas id="chart-revenue-client-type"></canvas>
+        </div>
+      </div>
+
+      <div class="dash-grid-2">
+        <div class="dash-card">
+          <h3>Ranking de fornecedores</h3>
+          <div id="supplier-ranking"></div>
+        </div>
+        <div class="dash-card">
+          <h3>Top 5 clientes por faturamento</h3>
+          <div id="top-clients"></div>
+        </div>
+      </div>
+
+      <div class="dash-grid-2">
+        <div class="dash-card">
+          <h3>Invoices vencendo em 7 dias</h3>
+          <div id="upcoming-invoices"></div>
+        </div>
+        <div class="dash-card">
+          <h3>Saúde da conciliação</h3>
+          <div id="reconciliation-health"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== VIEW: Dashboard - Fluxo por Cliente ===== -->
+    <div class="view" id="view-dashboard-client">
+      <button class="back-link" id="back-to-dash-menu-2">← Dashboard</button>
+      <div class="section-header">
+        <h2>Fluxo por Cliente</h2>
+        <select id="dash-client-select" style="width:260px; margin:0;">
+          <option value="">Selecione um cliente...</option>
+        </select>
+      </div>
+
+      <div id="dash-client-content" style="display:none;">
+        <div class="kpi-grid">
+          <div class="kpi-card kpi-receivable">
+            <span class="kpi-label">Receita total</span>
+            <span class="kpi-value" id="dc-revenue">—</span>
+          </div>
+          <div class="kpi-card kpi-payable">
+            <span class="kpi-label">Custo total</span>
+            <span class="kpi-value" id="dc-cost">—</span>
+          </div>
+          <div class="kpi-card kpi-balance">
+            <span class="kpi-label">Lucro líquido</span>
+            <span class="kpi-value" id="dc-net">—</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:15%;">Data</th>
+                <th style="width:15%;">Tipo</th>
+                <th style="width:45%;">Descrição</th>
+                <th style="width:25%;">Valor</th>
+              </tr>
+            </thead>
+            <tbody id="dash-client-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <p id="dash-client-empty" class="muted" style="text-align:center; padding:40px 0;">Selecione um cliente acima para ver o fluxo detalhado.</p>
+    </div>
+  </main>
+</div>
+
+<!-- ============ CLIENT MODAL ============ -->
+<div class="modal-overlay" id="client-modal">
+  <div class="modal">
+    <h3 id="modal-title">Novo cliente</h3>
+    <form id="client-form">
+      <input type="hidden" id="client-id">
+      <label for="c-name">Nome *</label>
+      <input type="text" id="c-name" required>
+      <label for="c-type">Tipo de cliente</label>
+      <select id="c-type">
+        <option value="">Selecione...</option>
+        <option value="Fixos">Fixos</option>
+        <option value="Premium">Premium</option>
+        <option value="Esporadicos">Esporádicos</option>
+        <option value="Builder Finishing">Builder Finishing</option>
+        <option value="Treinamento">Treinamento</option>
+      </select>
+      <label for="c-email">Email</label>
+      <input type="email" id="c-email">
+      <label for="c-phone">Telefone</label>
+      <input type="text" id="c-phone">
+      <label for="c-address">Endereço</label>
+      <input type="text" id="c-address">
+      <label for="c-status">Status</label>
+      <select id="c-status">
+        <option value="active">Ativo</option>
+        <option value="inactive">Inativo</option>
+      </select>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-modal">Cancelar</button>
+        <button type="submit" class="btn-amber">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ INVOICE MODAL ============ -->
+<div class="modal-overlay" id="invoice-modal">
+  <div class="modal wide">
+    <h3 id="invoice-modal-title">Nova invoice</h3>
+    <form id="invoice-form">
+      <input type="hidden" id="i-id">
+      <div class="form-grid">
+        <div class="full">
+          <label for="i-client">Cliente *</label>
+          <select id="i-client" required></select>
+        </div>
+
+        <div>
+          <label for="i-number">Número da invoice</label>
+          <input type="text" id="i-number" readonly style="background:#f0efec; color: var(--muted);">
+        </div>
+
+        <div>
+          <label for="i-amount">Valor (AUD) *</label>
+          <input type="text" id="i-amount" inputmode="decimal" required placeholder="$ 0,00">
+        </div>
+
+        <div>
+          <label for="i-status">Status</label>
+          <select id="i-status">
+            <option value="draft">Rascunho</option>
+            <option value="sent">Enviada</option>
+            <option value="paid">Paga</option>
+            <option value="overdue">Atrasada</option>
+            <option value="cancelled">Cancelada</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="i-issue-date">Data de emissão</label>
+          <input type="date" id="i-issue-date">
+        </div>
+
+        <div>
+          <label for="i-due-date">Data de vencimento</label>
+          <input type="date" id="i-due-date">
+        </div>
+
+        <div class="full">
+          <label for="i-description">Descrição do serviço</label>
+          <textarea id="i-description" rows="4" placeholder="Um item por linha, ex:&#10;Reparo torneira cozinha $80&#10;Instalação luminária sala $120" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:10px; font-size:14px; margin-bottom:16px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-invoice-modal">Cancelar</button>
+        <button type="submit" class="btn-amber">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ EXPENSE MODAL ============ -->
+<div class="modal-overlay" id="expense-modal">
+  <div class="modal wide">
+    <h3 id="expense-modal-title">Nova despesa</h3>
+    <form id="expense-form">
+      <input type="hidden" id="e-id">
+      <div class="form-grid">
+        <div class="full">
+          <label for="e-description">Descrição *</label>
+          <input type="text" id="e-description" required>
+        </div>
+
+        <div>
+          <label for="e-category">Categoria *</label>
+          <select id="e-category" required>
+            <option value="">Selecione...</option>
+            <option value="Materiais e Ferramentas">Materiais e Ferramentas</option>
+            <option value="Combustível e Transporte">Combustível e Transporte</option>
+            <option value="Mão de obra / Subcontratados">Mão de obra / Subcontratados</option>
+            <option value="Seguro">Seguro</option>
+            <option value="Marketing e Publicidade">Marketing e Publicidade</option>
+            <option value="Contabilidade e Taxas">Contabilidade e Taxas</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="e-client">Cliente (opcional)</label>
+          <select id="e-client">
+            <option value="">Nenhum — despesa da empresa</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="e-supplier">Fornecedor</label>
+          <select id="e-supplier">
+            <option value="">Selecione...</option>
+            <option value="Bunnings">Bunnings</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="e-amount">Valor (AUD) *</label>
+          <input type="text" id="e-amount" inputmode="decimal" required placeholder="$ 0,00">
+        </div>
+
+        <div>
+          <label for="e-date">Data</label>
+          <input type="date" id="e-date">
+        </div>
+
+        <div class="full">
+          <label for="e-receipt">Comprovante (foto ou PDF)</label>
+          <input type="file" id="e-receipt" accept="image/*,application/pdf">
+          <p id="e-receipt-current" class="muted" style="margin-top:-10px; font-size:12px;"></p>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-expense-modal">Cancelar</button>
+        <button type="submit" class="btn-amber">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ TRANSACTION MODAL ============ -->
+<div class="modal-overlay" id="transaction-modal">
+  <div class="modal">
+    <h3 id="transaction-modal-title">Nova transação</h3>
+    <form id="transaction-form">
+      <input type="hidden" id="t-id">
+      <label for="t-date">Data *</label>
+      <input type="date" id="t-date" required>
+      <label for="t-description">Descrição *</label>
+      <input type="text" id="t-description" required placeholder="Ex: Depósito cliente, Débito Bunnings...">
+      <label for="t-type">Tipo *</label>
+      <select id="t-type" required>
+        <option value="income">Entrada</option>
+        <option value="expense">Saída</option>
+      </select>
+      <label for="t-amount">Valor (AUD) *</label>
+      <input type="text" id="t-amount" inputmode="decimal" required placeholder="$ 0,00">
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-transaction-modal">Cancelar</button>
+        <button type="submit" class="btn-amber">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ CSV IMPORT MODAL ============ -->
+<div class="modal-overlay" id="csv-modal">
+  <div class="modal">
+    <h3>Importar extrato (CSV)</h3>
+    <p class="muted" style="font-size:13px; margin-top:-8px;">
+      Formato do Commonwealth Bank: <strong>Data, Valor, Descrição, Saldo</strong> (saldo é ignorado). Aceita data em <strong>DD/MM/AAAA</strong> ou <strong>AAAA-MM-DD</strong>, com ou sem linha de cabeçalho — o sistema detecta sozinho.
+    </p>
+    <input type="file" id="csv-file" accept=".csv">
+    <div id="csv-preview" style="max-height:240px; overflow-y:auto; margin: 12px 0;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cancel-csv-modal">Cancelar</button>
+      <button type="button" class="btn-amber" id="confirm-csv-import" disabled>Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LINK MODAL ============ -->
+<div class="modal-overlay" id="link-modal">
+  <div class="modal">
+    <h3 id="link-modal-title">Vincular transação</h3>
+    <p id="link-modal-info" class="muted" style="font-size:13px; margin-top:-8px;"></p>
+    <label for="link-select">Vincular a</label>
+    <select id="link-select"></select>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cancel-link-modal">Cancelar</button>
+      <button type="button" class="btn-amber" id="confirm-link">Vincular</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DESCRIPTION VIEW MODAL ============ -->
+<div class="modal-overlay" id="desc-modal">
+  <div class="modal">
+    <h3>Descrição do serviço</h3>
+    <p id="desc-modal-content" style="white-space:pre-line; font-size:14px; color: var(--text); line-height:1.5; margin: 0 0 20px;"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="close-desc-modal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ---------- Supabase setup ----------
+  const SUPABASE_URL = 'https://zwwusyyaiyaooaosmdwz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3d3VzeXlhaXlhb29hb3NtZHd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3Nzk2MDcsImV4cCI6MjEwMTM1NTYwN30.38dxrHC-6Z5amNpu0NCGFg220WrgofY7EzHS89ATxrY';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const loginScreen = document.getElementById('login-screen');
+  const app = document.getElementById('app');
+  const loginForm = document.getElementById('login-form');
+  const loginError = document.getElementById('login-error');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  // ---------- Auth ----------
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    loginError.style.display = 'none';
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      loginError.textContent = 'Email ou senha incorretos.';
+      loginError.style.display = 'block';
+      return;
+    }
+    showApp();
+  });
+
+  logoutBtn.addEventListener('click', async () => {
+    await sb.auth.signOut();
+    location.reload();
+  });
+
+  async function checkSession() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      showApp();
+    } else {
+      loginScreen.style.display = 'flex';
+      app.style.display = 'none';
+    }
+  }
+
+  function showApp() {
+    loginScreen.style.display = 'none';
+    app.style.display = 'block';
+    goHome();
+  }
+
+  // ---------- Navigation ----------
+  function switchView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function goHome() {
+    switchView('view-home');
+  }
+
+  document.getElementById('back-to-home').addEventListener('click', goHome);
+
+  document.getElementById('back-to-home-2').addEventListener('click', goHome);
+  document.getElementById('back-to-home-3').addEventListener('click', goHome);
+  document.getElementById('back-to-home-4').addEventListener('click', goHome);
+  document.getElementById('back-to-home-5').addEventListener('click', goHome);
+
+  document.getElementById('card-clients').addEventListener('click', () => {
+    switchView('view-clients');
+    loadClients();
+  });
+
+  document.getElementById('card-invoices').addEventListener('click', () => {
+    switchView('view-invoices');
+    loadInvoices();
+  });
+
+  document.getElementById('card-expenses').addEventListener('click', () => {
+    switchView('view-expenses');
+    loadExpenses();
+  });
+
+  document.getElementById('card-bank').addEventListener('click', () => {
+    switchView('view-bank');
+    loadTransactions();
+  });
+
+  document.getElementById('card-dashboard').addEventListener('click', () => {
+    switchView('view-dashboard-menu');
+  });
+
+  document.getElementById('back-to-dash-menu-1').addEventListener('click', () => switchView('view-dashboard-menu'));
+  document.getElementById('back-to-dash-menu-2').addEventListener('click', () => switchView('view-dashboard-menu'));
+
+  document.getElementById('card-dash-general').addEventListener('click', () => {
+    switchView('view-dashboard');
+    loadDashboard();
+  });
+
+  document.getElementById('card-dash-client').addEventListener('click', () => {
+    switchView('view-dashboard-client');
+    loadDashboardClientView();
+  });
+
+  ['card-investments']
+    .forEach(id => {
+      document.getElementById(id).addEventListener('click', () => {
+        showToast('Esse módulo ainda está em construção.');
+      });
+    });
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ---------- Clients CRUD ----------
+  const tbody = document.getElementById('clients-tbody');
+  const emptyState = document.getElementById('empty-state');
+  const clientModal = document.getElementById('client-modal');
+  const clientForm = document.getElementById('client-form');
+  const modalTitle = document.getElementById('modal-title');
+
+  document.getElementById('new-client-btn').addEventListener('click', () => openModal());
+  document.getElementById('cancel-modal').addEventListener('click', () => closeModal());
+  clientModal.addEventListener('click', (e) => { if (e.target === clientModal) closeModal(); });
+
+  function openModal(client = null) {
+    clientForm.reset();
+    document.getElementById('client-id').value = '';
+    if (client) {
+      modalTitle.textContent = 'Editar cliente';
+      document.getElementById('client-id').value = client.id;
+      document.getElementById('c-name').value = client.name || '';
+      document.getElementById('c-type').value = client.client_type || '';
+      document.getElementById('c-email').value = client.email || '';
+      document.getElementById('c-phone').value = client.phone || '';
+      document.getElementById('c-address').value = client.address || '';
+      document.getElementById('c-status').value = client.status || 'active';
+    } else {
+      modalTitle.textContent = 'Novo cliente';
+    }
+    clientModal.classList.add('open');
+  }
+
+  function closeModal() {
+    clientModal.classList.remove('open');
+  }
+
+  document.getElementById('show-inactive-clients').addEventListener('change', loadClients);
+  document.getElementById('client-name-search').addEventListener('input', renderClientsList);
+
+  let allClients = [];
+
+  async function loadClients() {
+    const showInactive = document.getElementById('show-inactive-clients').checked;
+    let query = sb.from('clients').select('*').order('created_at', { ascending: false });
+    if (!showInactive) query = query.eq('status', 'active');
+    const { data, error } = await query;
+
+    if (error) {
+      showToast('Erro ao carregar clientes: ' + error.message);
+      return;
+    }
+
+    allClients = data || [];
+    renderClientsList();
+  }
+
+  function renderClientsList() {
+    const searchTerm = document.getElementById('client-name-search').value.trim().toLowerCase();
+    const data = searchTerm
+      ? allClients.filter(c => (c.name || '').toLowerCase().includes(searchTerm))
+      : allClients;
+
+    tbody.innerHTML = '';
+    if (!data || data.length === 0) {
+      emptyState.style.display = 'block';
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    data.forEach(client => {
+      const tr = document.createElement('tr');
+      const statusLabel = client.status === 'inactive'
+        ? '<span class="status-badge status-cancelled">Inativo</span>'
+        : '<span class="status-badge status-paid">Ativo</span>';
+      tr.innerHTML = `
+        <td>${escapeHtml(client.name)}</td>
+        <td class="muted">${escapeHtml(client.client_type || '—')}</td>
+        <td class="muted">${escapeHtml(client.email || '—')}</td>
+        <td class="muted">${escapeHtml(client.phone || '—')}</td>
+        <td>${statusLabel}</td>
+        <td>
+          <div class="row-actions">
+            <button class="edit-btn">Editar</button>
+            <button class="delete">Excluir</button>
+          </div>
+        </td>
+      `;
+      tr.querySelector('.edit-btn').addEventListener('click', () => openModal(client));
+      tr.querySelector('.delete').addEventListener('click', () => deleteClient(client.id, client.name));
+      tbody.appendChild(tr);
+    });
+  }
+
+  clientForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('client-id').value;
+    const payload = {
+      name: document.getElementById('c-name').value.trim(),
+      client_type: document.getElementById('c-type').value || null,
+      email: document.getElementById('c-email').value.trim() || null,
+      phone: document.getElementById('c-phone').value.trim() || null,
+      address: document.getElementById('c-address').value.trim() || null,
+      status: document.getElementById('c-status').value,
+    };
+
+    let error;
+    if (id) {
+      ({ error } = await sb.from('clients').update(payload).eq('id', id));
+    } else {
+      ({ error } = await sb.from('clients').insert(payload));
+    }
+
+    if (error) {
+      showToast('Erro ao salvar: ' + error.message);
+      return;
+    }
+    closeModal();
+    showToast(id ? 'Cliente atualizado.' : 'Cliente criado.');
+    loadClients();
+  });
+
+  async function deleteClient(id, name) {
+    if (!confirm(`Excluir o cliente "${name}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await sb.from('clients').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir: ' + error.message);
+      return;
+    }
+    showToast('Cliente excluído.');
+    loadClients();
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  }
+
+  // ---------- Invoices CRUD ----------
+  const invoicesTbody = document.getElementById('invoices-tbody');
+  const invoicesEmptyState = document.getElementById('invoices-empty-state');
+  const invoiceModal = document.getElementById('invoice-modal');
+  const invoiceForm = document.getElementById('invoice-form');
+  const invoiceModalTitle = document.getElementById('invoice-modal-title');
+  const statusLabels = {
+    draft: 'Rascunho', sent: 'Enviada', paid: 'Paga',
+    overdue: 'Atrasada', cancelled: 'Cancelada'
+  };
+
+  document.getElementById('new-invoice-btn').addEventListener('click', () => openInvoiceModal());
+  document.getElementById('cancel-invoice-modal').addEventListener('click', () => closeInvoiceModal());
+  invoiceModal.addEventListener('click', (e) => { if (e.target === invoiceModal) closeInvoiceModal(); });
+
+  // Gera abreviação do nome do cliente: pega as primeiras letras de cada palavra, até 6 caracteres
+  function clientAbbreviation(name) {
+    if (!name) return 'CLI';
+    const clean = name.trim().toUpperCase().replace(/[^A-Z\s]/g, '');
+    const words = clean.split(/\s+/).filter(Boolean);
+    let abbr;
+    if (words.length === 1) {
+      abbr = words[0].slice(0, 6);
+    } else {
+      abbr = words.map(w => w[0]).join('').slice(0, 6);
+    }
+    return abbr || 'CLI';
+  }
+
+  async function generateInvoiceNumber(clientName) {
+    const abbr = clientAbbreviation(clientName);
+    const { data, error } = await sb
+      .from('invoices')
+      .select('invoice_number')
+      .ilike('invoice_number', `INV-${abbr}-%`);
+
+    let maxSeq = 0;
+    if (!error && data) {
+      data.forEach(row => {
+        const match = row.invoice_number.match(/-(\d+)$/);
+        if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
+      });
+    }
+    const nextSeq = String(maxSeq + 1).padStart(3, '0');
+    return `INV-${abbr}-${nextSeq}`;
+  }
+
+  async function openInvoiceModal(invoice = null) {
+    invoiceForm.reset();
+    document.getElementById('i-id').value = '';
+
+    // Popular dropdown de clientes
+    const { data: clients, error } = await sb.from('clients').select('id, name').order('name');
+    const select = document.getElementById('i-client');
+    select.innerHTML = '<option value="">Selecione...</option>';
+    if (!error && clients) {
+      clients.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        select.appendChild(opt);
+      });
+    }
+
+    if (invoice) {
+      invoiceModalTitle.textContent = 'Editar invoice';
+      document.getElementById('i-id').value = invoice.id;
+      select.value = invoice.client_id;
+      document.getElementById('i-number').value = invoice.invoice_number;
+      document.getElementById('i-description').value = invoice.description || '';
+      document.getElementById('i-amount').value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(invoice.amount);
+      document.getElementById('i-status').value = invoice.status;
+      document.getElementById('i-issue-date').value = invoice.issue_date || '';
+      document.getElementById('i-due-date').value = invoice.due_date || '';
+    } else {
+      invoiceModalTitle.textContent = 'Nova invoice';
+      document.getElementById('i-number').value = 'Selecione o cliente...';
+      document.getElementById('i-issue-date').value = new Date().toISOString().slice(0, 10);
+    }
+
+    invoiceModal.classList.add('open');
+  }
+
+  // Ao trocar o cliente (numa invoice NOVA), gera o número automaticamente
+  // Máscara de valor monetário: digita números, formata como AUD em tempo real
+  const amountInput = document.getElementById('i-amount');
+  amountInput.addEventListener('input', () => {
+    let digits = amountInput.value.replace(/\D/g, '');
+    if (!digits) { amountInput.value = ''; return; }
+    const cents = parseInt(digits, 10);
+    const value = cents / 100;
+    amountInput.value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(value);
+  });
+  function amountToNumber(str) {
+    const digits = str.replace(/\D/g, '');
+    return digits ? parseInt(digits, 10) / 100 : 0;
+  }
+
+  document.getElementById('i-client').addEventListener('change', async (e) => {
+    const isEditing = document.getElementById('i-id').value;
+    if (isEditing) return; // não renumera invoice existente
+    const clientName = e.target.selectedOptions[0]?.textContent;
+    if (!clientName || e.target.value === '') {
+      document.getElementById('i-number').value = '';
+      return;
+    }
+    document.getElementById('i-number').value = 'Gerando...';
+    document.getElementById('i-number').value = await generateInvoiceNumber(clientName);
+  });
+
+  function closeInvoiceModal() {
+    invoiceModal.classList.remove('open');
+  }
+
+  function openDescModal(text) {
+    document.getElementById('desc-modal-content').textContent = text;
+    document.getElementById('desc-modal').classList.add('open');
+  }
+  document.getElementById('close-desc-modal').addEventListener('click', () => {
+    document.getElementById('desc-modal').classList.remove('open');
+  });
+  document.getElementById('desc-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'desc-modal') document.getElementById('desc-modal').classList.remove('open');
+  });
+
+  document.getElementById('show-all-invoices').addEventListener('change', loadInvoices);
+  document.getElementById('invoice-client-search').addEventListener('input', renderInvoicesList);
+
+  let allInvoices = [];
+
+  async function updateOverdueInvoices() {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data, error } = await sb
+      .from('invoices')
+      .select('id, due_date, status')
+      .in('status', ['draft', 'sent'])
+      .lt('due_date', today);
+
+    if (error || !data || data.length === 0) return;
+
+    const ids = data.map(i => i.id);
+    await sb.from('invoices').update({ status: 'overdue' }).in('id', ids);
+  }
+
+  async function loadInvoices() {
+    await updateOverdueInvoices();
+
+    const showAll = document.getElementById('show-all-invoices').checked;
+    let query = sb
+      .from('invoices')
+      .select('*, clients(name, client_type)')
+      .order('created_at', { ascending: false });
+
+    if (!showAll) {
+      query = query.in('status', ['draft', 'sent', 'overdue']);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      showToast('Erro ao carregar invoices: ' + error.message);
+      return;
+    }
+
+    allInvoices = data || [];
+    renderInvoicesList();
+  }
+
+  function renderInvoicesList() {
+    const searchTerm = document.getElementById('invoice-client-search').value.trim().toLowerCase();
+    const data = searchTerm
+      ? allInvoices.filter(inv => (inv.clients?.name || '').toLowerCase().includes(searchTerm))
+      : allInvoices;
+
+    invoicesTbody.innerHTML = '';
+    if (!data || data.length === 0) {
+      invoicesEmptyState.style.display = 'block';
+      invoicesEmptyState.textContent = searchTerm
+        ? 'Nenhuma invoice encontrada para esse cliente.'
+        : '';
+      if (!searchTerm) {
+        invoicesEmptyState.innerHTML = 'Nenhuma invoice criada ainda.<br>Clique em "+ Nova invoice" para começar.';
+      }
+      return;
+    }
+    invoicesEmptyState.style.display = 'none';
+
+    data.forEach(inv => {
+      const tr = document.createElement('tr');
+      const amountFmt = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(inv.amount);
+      const dueFmt = inv.due_date ? new Date(inv.due_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+      const descText = inv.description || '';
+      const isTruncated = descText.length > 40;
+      const descPreview = isTruncated ? descText.slice(0, 40) + '…' : (descText || '—');
+      tr.innerHTML = `
+        <td>${escapeHtml(inv.invoice_number)}</td>
+        <td>${escapeHtml(inv.clients?.name || '—')}</td>
+        <td class="muted" style="${isTruncated ? 'cursor:pointer; text-decoration:underline dotted;' : ''}">${escapeHtml(descPreview)}</td>
+        <td>${amountFmt}</td>
+        <td><span class="status-badge status-${inv.status}">${statusLabels[inv.status]}</span></td>
+        <td class="muted">${dueFmt}</td>
+        <td>
+          <div class="row-actions">
+            <button class="pdf-btn">${inv.pdf_path ? 'Ver PDF' : 'Gerar PDF'}</button>
+            <button class="edit-btn">Editar</button>
+            <button class="delete">Excluir</button>
+          </div>
+        </td>
+      `;
+      if (isTruncated) {
+        tr.querySelector('td.muted').addEventListener('click', () => openDescModal(descText));
+      }
+      tr.querySelector('.pdf-btn').addEventListener('click', () => handlePdfClick(inv));
+      tr.querySelector('.edit-btn').addEventListener('click', () => openInvoiceModal(inv));
+      tr.querySelector('.delete').addEventListener('click', () => deleteInvoice(inv.id, inv.invoice_number));
+      invoicesTbody.appendChild(tr);
+    });
+  }
+
+  invoiceForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = invoiceForm.querySelector('button[type="submit"]');
+    if (submitBtn.disabled) return; // já está salvando, ignora clique duplicado
+    submitBtn.disabled = true;
+
+    const id = document.getElementById('i-id').value;
+    const payload = {
+      client_id: document.getElementById('i-client').value,
+      invoice_number: document.getElementById('i-number').value,
+      description: document.getElementById('i-description').value.trim() || null,
+      amount: amountToNumber(document.getElementById('i-amount').value),
+      status: document.getElementById('i-status').value,
+      issue_date: document.getElementById('i-issue-date').value || null,
+      due_date: document.getElementById('i-due-date').value || null,
+    };
+
+    if (!payload.client_id) {
+      showToast('Selecione um cliente.');
+      submitBtn.disabled = false;
+      return;
+    }
+
+    let error;
+    if (id) {
+      ({ error } = await sb.from('invoices').update(payload).eq('id', id));
+    } else {
+      ({ error } = await sb.from('invoices').insert(payload));
+    }
+
+    submitBtn.disabled = false;
+
+    if (error) {
+      showToast('Erro ao salvar: ' + error.message);
+      return;
+    }
+    closeInvoiceModal();
+    showToast(id ? 'Invoice atualizada.' : 'Invoice criada.');
+    loadInvoices();
+  });
+
+  // ---------- Geração de PDF ----------
+  function loadImageAsDataURL(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg'));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  async function handlePdfClick(invoice) {
+    if (invoice.pdf_path) {
+      const { data, error } = await sb.storage.from('invoice-pdfs').createSignedUrl(invoice.pdf_path, 120);
+      if (error) {
+        showToast('Erro ao abrir PDF: ' + error.message);
+        return;
+      }
+      window.open(data.signedUrl, '_blank');
+      return;
+    }
+    await generateAndStoreInvoicePdf(invoice);
+  }
+
+  // Interpreta a descrição em linhas "Descrição $valor" -> itens de tabela
+  function parseInvoiceItems(description, fallbackAmount) {
+    const lines = (description || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const items = [];
+    let sum = 0;
+    lines.forEach(line => {
+      const match = line.match(/^(.*?)\$?\s*([\d]+(?:[.,]\d{1,2})?)\s*$/);
+      if (match && match[1].trim()) {
+        const desc = match[1].replace(/\$$/, '').trim();
+        const value = parseFloat(match[2].replace(',', '.'));
+        items.push({ description: desc, amount: value });
+        sum += value;
+      } else {
+        items.push({ description: line, amount: null });
+      }
+    });
+    if (items.length === 0) {
+      items.push({ description: 'Serviços prestados', amount: fallbackAmount });
+      sum = fallbackAmount;
+    }
+    return { items, sum };
+  }
+
+  async function generateAndStoreInvoicePdf(invoice) {
+    showToast('Gerando PDF...');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 42;
+    const navy = [26, 26, 24];      // 1A1A18
+    const teal = [255, 122, 26];    // FF7A1A
+    const dark = [26, 26, 24];
+    const muted = [107, 101, 96];
+    const lightRow = [245, 243, 238]; // F5F3EE
+
+    // ---------- Header ----------
+    try {
+      const logoData = await loadImageAsDataURL('logo-invoice.png');
+      doc.addImage(logoData, 'PNG', marginX, 30, 62, 62);
+    } catch (e) {
+      try {
+        const logoData = await loadImageAsDataURL('logo.jpg');
+        doc.addImage(logoData, 'JPEG', marginX, 30, 55, 55);
+      } catch (e2) { /* segue sem logo */ }
+    }
+
+    doc.setFontSize(13);
+    doc.setTextColor(...dark);
+    doc.setFont(undefined, 'bold');
+    doc.text('Handymate Melbourne', marginX + 72, 50);
+
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    doc.text('0449 884 908  ·  Handymatemelbourne@gmail.com', marginX + 72, 63);
+    doc.text('@handymate.melbourne  ·  Oakleigh South, VIC', marginX + 72, 74);
+
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...dark);
+    doc.text('INVOICE', pageWidth - marginX, 50, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    doc.text('ABN 63 850 772 754', pageWidth - marginX, 63, { align: 'right' });
+
+    // ---------- Faixa de info (Invoice No / Issue / Due laranja, Total due preto) ----------
+    const infoY = 108;
+    const infoBoxH = 46;
+    const colWidth = (pageWidth - marginX * 2) / 4;
+    const infoCols = [
+      { label: 'INVOICE NO.', value: invoice.invoice_number, fill: teal, text: [255,255,255] },
+      { label: 'ISSUE DATE', value: invoice.issue_date ? new Date(invoice.issue_date + 'T00:00:00').toLocaleDateString('en-AU') : '—', fill: teal, text: [255,255,255] },
+      { label: 'DUE DATE', value: invoice.due_date ? new Date(invoice.due_date + 'T00:00:00').toLocaleDateString('en-AU') : '—', fill: teal, text: [255,255,255] },
+      { label: 'TOTAL DUE (AUD)', value: new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(invoice.amount), fill: navy, text: [255,255,255] },
+    ];
+    infoCols.forEach((c, i) => {
+      const x = marginX + colWidth * i;
+      const gap = i === 0 ? 0 : 3;
+      doc.setFillColor(...c.fill);
+      doc.roundedRect(x + (i>0?gap:0), infoY, colWidth - gap, infoBoxH, 6, 6, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(255,255,255);
+      doc.text(c.label, x + 12, infoY + 18);
+      doc.setFontSize(11.5);
+      doc.text(String(c.value), x + 12, infoY + 35);
+    });
+
+    // ---------- Bill to ----------
+    let y = infoY + infoBoxH + 30;
+    doc.setFontSize(7.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...muted);
+    doc.text('BILL TO', marginX, y);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...dark);
+    doc.text(invoice.clients?.name || '—', marginX, y + 16);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    let billY = y + 30;
+    if (invoice.clients?.email) { doc.text(invoice.clients.email, marginX, billY); billY += 12; }
+    if (invoice.clients?.phone) { doc.text(invoice.clients.phone, marginX, billY); billY += 12; }
+
+    // ---------- Tabela de itens ----------
+    const { items, sum } = parseInvoiceItems(invoice.description, invoice.amount);
+    let tableY = Math.max(billY + 20, y + 70);
+
+    doc.setFillColor(...navy);
+    doc.roundedRect(marginX, tableY, pageWidth - marginX * 2, 24, 4, 4, 'F');
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('DESCRIPTION', marginX + 12, tableY + 16);
+    doc.text('AMOUNT', pageWidth - marginX - 12, tableY + 16, { align: 'right' });
+
+    let rowY = tableY + 24;
+    items.forEach((item, idx) => {
+      const lines = doc.splitTextToSize(item.description, pageWidth - marginX * 2 - 75);
+      const rowHeight = Math.max(22, lines.length * 12 + 10);
+      if (idx % 2 === 0) {
+        doc.setFillColor(...lightRow);
+        doc.rect(marginX, rowY, pageWidth - marginX * 2, rowHeight, 'F');
+      }
+      doc.setFontSize(9.5);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(...dark);
+      doc.text(lines, marginX + 12, rowY + 14);
+      if (item.amount !== null) {
+        doc.text(
+          new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(item.amount),
+          pageWidth - marginX - 12, rowY + 14, { align: 'right' }
+        );
+      }
+      rowY += rowHeight;
+    });
+
+    // ---------- Totais ----------
+    rowY += 14;
+    doc.setDrawColor(220, 228, 233);
+    doc.setLineWidth(1);
+    doc.line(pageWidth - marginX - 200, rowY, pageWidth - marginX, rowY);
+    rowY += 20;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    doc.text('Subtotal', pageWidth - marginX - 200, rowY);
+    doc.setTextColor(...dark);
+    doc.text(new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(sum), pageWidth - marginX, rowY, { align: 'right' });
+
+    rowY += 22;
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...navy);
+    doc.text('Amount due', pageWidth - marginX - 200, rowY);
+    doc.text(new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(invoice.amount), pageWidth - marginX, rowY, { align: 'right' });
+
+    // ---------- Pagamento ----------
+    let payY = rowY + 50;
+    doc.setFillColor(...lightRow);
+    doc.roundedRect(marginX, payY, pageWidth - marginX * 2, 78, 8, 8, 'F');
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...navy);
+    doc.text('PAYMENT · BANK TRANSFER', marginX + 14, payY + 20);
+    doc.setFontSize(9.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...dark);
+    doc.text('Account name: Fagner Franca da Silva', marginX + 14, payY + 38);
+    doc.text('BSB: 065-004   ·   Account: 11254129', marginX + 14, payY + 53);
+    doc.text('Reference: ' + invoice.invoice_number, marginX + 14, payY + 68);
+
+    // ---------- Rodapé ----------
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    doc.text('Handymate Melbourne — Thank you for your business!', marginX, payY + 110);
+
+    const pdfBlob = doc.output('blob');
+    const path = `${invoice.invoice_number}.pdf`;
+
+    const { error: uploadError } = await sb.storage
+      .from('invoice-pdfs')
+      .upload(path, pdfBlob, { contentType: 'application/pdf', upsert: true });
+
+    if (uploadError) {
+      showToast('Erro ao salvar PDF: ' + uploadError.message);
+      return;
+    }
+
+    const { error: updateError } = await sb
+      .from('invoices')
+      .update({ pdf_path: path, status: 'sent' })
+      .eq('id', invoice.id);
+
+    if (updateError) {
+      showToast('PDF salvo, mas erro ao atualizar status: ' + updateError.message);
+    } else {
+      showToast('PDF gerado e invoice marcada como Enviada.');
+    }
+    loadInvoices();
+  }
+
+  async function deleteInvoice(id, number) {
+    if (!confirm(`Excluir a invoice "${number}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await sb.from('invoices').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir: ' + error.message);
+      return;
+    }
+    showToast('Invoice excluída.');
+    loadInvoices();
+  }
+
+  // ---------- Expenses CRUD ----------
+  const expensesTbody = document.getElementById('expenses-tbody');
+  const expensesEmptyState = document.getElementById('expenses-empty-state');
+  const expenseModal = document.getElementById('expense-modal');
+  const expenseForm = document.getElementById('expense-form');
+  const expenseModalTitle = document.getElementById('expense-modal-title');
+  let linkingTransactionForExpense = null;
+
+  document.getElementById('new-expense-btn').addEventListener('click', () => openExpenseModal());
+  document.getElementById('cancel-expense-modal').addEventListener('click', () => closeExpenseModal());
+  expenseModal.addEventListener('click', (e) => { if (e.target === expenseModal) closeExpenseModal(); });
+  document.getElementById('expense-category-filter').addEventListener('change', renderExpensesList);
+  document.getElementById('expense-client-search').addEventListener('input', renderExpensesList);
+  document.getElementById('expense-supplier-search').addEventListener('input', renderExpensesList);
+  document.getElementById('expense-description-search').addEventListener('input', renderExpensesList);
+
+  // Máscara de valor (igual invoices)
+  const expenseAmountInput = document.getElementById('e-amount');
+  expenseAmountInput.addEventListener('input', () => {
+    let digits = expenseAmountInput.value.replace(/\D/g, '');
+    if (!digits) { expenseAmountInput.value = ''; return; }
+    const value = parseInt(digits, 10) / 100;
+    expenseAmountInput.value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(value);
+  });
+
+  async function openExpenseModalFromTransaction(tx) {
+    await openExpenseModal();
+    linkingTransactionForExpense = tx.id;
+    document.getElementById('e-description').value = tx.description || '';
+    document.getElementById('e-date').value = tx.transaction_date;
+    document.getElementById('e-amount').value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Math.abs(tx.amount));
+    expenseModalTitle.textContent = 'Incluir despesa (a partir da transação)';
+  }
+
+  async function openExpenseModal(expense = null) {
+    linkingTransactionForExpense = null;
+    expenseForm.reset();
+    document.getElementById('e-id').value = '';
+    document.getElementById('e-receipt-current').textContent = '';
+
+    // Popular dropdown de clientes
+    const { data: clients, error } = await sb.from('clients').select('id, name').order('name');
+    const clientSelect = document.getElementById('e-client');
+    clientSelect.innerHTML = '<option value="">Nenhum — despesa da empresa</option>';
+    if (!error && clients) {
+      clients.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        clientSelect.appendChild(opt);
+      });
+    }
+
+    if (expense) {
+      expenseModalTitle.textContent = 'Editar despesa';
+      document.getElementById('e-id').value = expense.id;
+      document.getElementById('e-description').value = expense.description || '';
+      document.getElementById('e-category').value = expense.category || '';
+      document.getElementById('e-supplier').value = expense.supplier || '';
+      clientSelect.value = expense.client_id || '';
+      document.getElementById('e-amount').value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(expense.amount);
+      document.getElementById('e-date').value = expense.expense_date || '';
+      if (expense.receipt_path) {
+        document.getElementById('e-receipt-current').textContent = 'Comprovante já anexado. Escolher outro arquivo substitui o atual.';
+      }
+    } else {
+      expenseModalTitle.textContent = 'Nova despesa';
+      document.getElementById('e-date').value = new Date().toISOString().slice(0, 10);
+    }
+    expenseModal.classList.add('open');
+  }
+
+  function closeExpenseModal() {
+    expenseModal.classList.remove('open');
+  }
+
+  let allExpenses = [];
+
+  async function loadExpenses() {
+    const { data, error } = await sb
+      .from('expenses')
+      .select('*, clients(name)')
+      .order('expense_date', { ascending: false });
+
+    if (error) {
+      showToast('Erro ao carregar despesas: ' + error.message);
+      return;
+    }
+
+    allExpenses = data || [];
+    renderExpensesList();
+  }
+
+  function renderExpensesList() {
+    const categoryFilter = document.getElementById('expense-category-filter').value;
+    const clientSearch = document.getElementById('expense-client-search').value.trim().toLowerCase();
+    const supplierSearch = document.getElementById('expense-supplier-search').value.trim().toLowerCase();
+    const descSearch = document.getElementById('expense-description-search').value.trim().toLowerCase();
+
+    const data = allExpenses.filter(exp => {
+      if (categoryFilter && exp.category !== categoryFilter) return false;
+      if (clientSearch) {
+        const clientName = (exp.clients?.name || '').toLowerCase();
+        const matchesCompany = !exp.client_id && 'empresa'.includes(clientSearch);
+        if (!clientName.includes(clientSearch) && !matchesCompany) return false;
+      }
+      if (supplierSearch && !(exp.supplier || '').toLowerCase().includes(supplierSearch)) return false;
+      if (descSearch && !(exp.description || '').toLowerCase().includes(descSearch)) return false;
+      return true;
+    });
+
+    expensesTbody.innerHTML = '';
+    if (!data || data.length === 0) {
+      expensesEmptyState.style.display = 'block';
+      return;
+    }
+    expensesEmptyState.style.display = 'none';
+
+    data.forEach(exp => {
+      const tr = document.createElement('tr');
+      const amountFmt = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(exp.amount);
+      const dateFmt = exp.expense_date ? new Date(exp.expense_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+      tr.innerHTML = `
+        <td>${escapeHtml(exp.description)}</td>
+        <td class="muted">${escapeHtml(exp.category)}</td>
+        <td class="muted">${escapeHtml(exp.supplier || '—')}</td>
+        <td class="muted">${escapeHtml(exp.clients?.name || '— Empresa')}</td>
+        <td>${amountFmt}</td>
+        <td class="muted">${dateFmt}</td>
+        <td>${exp.receipt_path ? '<button class="receipt-btn">Ver</button>' : '<span class="muted">—</span>'}</td>
+        <td>
+          <div class="row-actions">
+            <button class="edit-btn">Editar</button>
+            <button class="delete">Excluir</button>
+          </div>
+        </td>
+      `;
+      if (exp.receipt_path) {
+        tr.querySelector('.receipt-btn').addEventListener('click', () => viewReceipt(exp.receipt_path));
+      }
+      tr.querySelector('.edit-btn').addEventListener('click', () => openExpenseModal(exp));
+      tr.querySelector('.delete').addEventListener('click', () => deleteExpense(exp.id, exp.description));
+      expensesTbody.appendChild(tr);
+    });
+  }
+
+  async function viewReceipt(path) {
+    const { data, error } = await sb.storage.from('expense-receipts').createSignedUrl(path, 120);
+    if (error) {
+      showToast('Erro ao abrir comprovante: ' + error.message);
+      return;
+    }
+    window.open(data.signedUrl, '_blank');
+  }
+
+  function amountToNumberGeneric(str) {
+    const digits = str.replace(/\D/g, '');
+    return digits ? parseInt(digits, 10) / 100 : 0;
+  }
+
+  expenseForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('e-id').value;
+    const fileInput = document.getElementById('e-receipt');
+    const file = fileInput.files[0];
+
+    const payload = {
+      description: document.getElementById('e-description').value.trim(),
+      category: document.getElementById('e-category').value,
+      supplier: document.getElementById('e-supplier').value || null,
+      client_id: document.getElementById('e-client').value || null,
+      amount: amountToNumberGeneric(document.getElementById('e-amount').value),
+      expense_date: document.getElementById('e-date').value || null,
+    };
+
+    let error, savedId = id;
+
+    if (id) {
+      ({ error } = await sb.from('expenses').update(payload).eq('id', id));
+    } else {
+      const { data: inserted, error: insertError } = await sb.from('expenses').insert(payload).select().single();
+      error = insertError;
+      if (inserted) savedId = inserted.id;
+    }
+
+    if (error) {
+      showToast('Erro ao salvar: ' + error.message);
+      return;
+    }
+
+    // Upload do comprovante, se selecionado
+    if (file && savedId) {
+      const ext = file.name.split('.').pop();
+      const path = `${savedId}.${ext}`;
+      const { error: uploadError } = await sb.storage
+        .from('expense-receipts')
+        .upload(path, file, { upsert: true });
+
+      if (uploadError) {
+        showToast('Despesa salva, mas erro ao subir comprovante: ' + uploadError.message);
+      } else {
+        await sb.from('expenses').update({ receipt_path: path }).eq('id', savedId);
+      }
+    }
+
+    const wasLinking = !!linkingTransactionForExpense;
+
+    // Se essa despesa foi criada a partir de uma transação bancária, vincula automaticamente
+    if (linkingTransactionForExpense && savedId) {
+      await sb.from('bank_transactions').update({ expense_id: savedId }).eq('id', linkingTransactionForExpense);
+      linkingTransactionForExpense = null;
+      loadTransactions();
+    }
+
+    closeExpenseModal();
+    showToast(id ? 'Despesa atualizada.' : (wasLinking ? 'Despesa criada e vinculada à transação.' : 'Despesa criada.'));
+    loadExpenses();
+  });
+
+  async function deleteExpense(id, description) {
+    if (!confirm(`Excluir a despesa "${description}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await sb.from('expenses').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir: ' + error.message);
+      return;
+    }
+    showToast('Despesa excluída.');
+    loadExpenses();
+  }
+
+  // ---------- Bank Transactions ----------
+  const bankTbody = document.getElementById('bank-tbody');
+  const bankEmptyState = document.getElementById('bank-empty-state');
+  const transactionModal = document.getElementById('transaction-modal');
+  const transactionForm = document.getElementById('transaction-form');
+  let allTransactions = [];
+
+  document.getElementById('new-transaction-btn').addEventListener('click', () => openTransactionModal());
+  document.getElementById('cancel-transaction-modal').addEventListener('click', () => transactionModal.classList.remove('open'));
+  transactionModal.addEventListener('click', (e) => { if (e.target === transactionModal) transactionModal.classList.remove('open'); });
+  document.getElementById('bank-search').addEventListener('input', renderTransactionsList);
+  document.getElementById('show-only-unlinked').addEventListener('change', renderTransactionsList);
+
+  const tAmountInput = document.getElementById('t-amount');
+  tAmountInput.addEventListener('input', () => {
+    let digits = tAmountInput.value.replace(/\D/g, '');
+    if (!digits) { tAmountInput.value = ''; return; }
+    const value = parseInt(digits, 10) / 100;
+    tAmountInput.value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(value);
+  });
+
+  function openTransactionModal(tx = null) {
+    transactionForm.reset();
+    document.getElementById('t-id').value = '';
+    if (tx) {
+      document.getElementById('transaction-modal-title').textContent = 'Editar transação';
+      document.getElementById('t-id').value = tx.id;
+      document.getElementById('t-date').value = tx.transaction_date;
+      document.getElementById('t-description').value = tx.description;
+      document.getElementById('t-type').value = tx.amount < 0 ? 'expense' : 'income';
+      document.getElementById('t-amount').value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Math.abs(tx.amount));
+    } else {
+      document.getElementById('transaction-modal-title').textContent = 'Nova transação';
+      document.getElementById('t-date').value = new Date().toISOString().slice(0, 10);
+    }
+    transactionModal.classList.add('open');
+  }
+
+  transactionForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('t-id').value;
+    const type = document.getElementById('t-type').value;
+    const rawAmount = amountToNumberGeneric(document.getElementById('t-amount').value);
+    const payload = {
+      transaction_date: document.getElementById('t-date').value,
+      description: document.getElementById('t-description').value.trim(),
+      amount: type === 'expense' ? -Math.abs(rawAmount) : Math.abs(rawAmount),
+    };
+
+    let error;
+    if (id) {
+      ({ error } = await sb.from('bank_transactions').update(payload).eq('id', id));
+    } else {
+      ({ error } = await sb.from('bank_transactions').insert(payload));
+    }
+
+    if (error) {
+      showToast('Erro ao salvar: ' + error.message);
+      return;
+    }
+    transactionModal.classList.remove('open');
+    showToast(id ? 'Transação atualizada.' : 'Transação criada.');
+    loadTransactions();
+  });
+
+  async function loadTransactions() {
+    const { data, error } = await sb
+      .from('bank_transactions')
+      .select('*, invoices(invoice_number, clients(name)), expenses(description)')
+      .order('transaction_date', { ascending: false });
+
+    if (error) {
+      showToast('Erro ao carregar transações: ' + error.message);
+      return;
+    }
+    allTransactions = data || [];
+    renderTransactionsList();
+  }
+
+  function renderTransactionsList() {
+    const search = document.getElementById('bank-search').value.trim().toLowerCase();
+    const onlyUnlinked = document.getElementById('show-only-unlinked').checked;
+
+    const data = allTransactions.filter(tx => {
+      if (search && !tx.description.toLowerCase().includes(search)) return false;
+      if (onlyUnlinked && (tx.invoice_id || tx.expense_id)) return false;
+      return true;
+    });
+
+    bankTbody.innerHTML = '';
+    if (data.length === 0) {
+      bankEmptyState.style.display = 'block';
+      return;
+    }
+    bankEmptyState.style.display = 'none';
+
+    data.forEach(tx => {
+      const tr = document.createElement('tr');
+      const isIncome = tx.amount >= 0;
+      const amountFmt = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Math.abs(tx.amount));
+      const dateFmt = new Date(tx.transaction_date + 'T00:00:00').toLocaleDateString('pt-BR');
+      let linkLabel = '<span class="muted">Sem vínculo</span>';
+      if (tx.invoice_id && tx.invoices) {
+        linkLabel = `<span class="status-badge status-paid">${escapeHtml(tx.invoices.invoice_number)}</span>`;
+      } else if (tx.expense_id && tx.expenses) {
+        linkLabel = `<span class="status-badge status-sent">${escapeHtml((tx.expenses.description || '').slice(0, 22))}</span>`;
+      }
+      let actionButton;
+      if (isIncome) {
+        actionButton = `<button class="link-btn">${tx.invoice_id ? 'Trocar vínculo' : 'Vincular'}</button>`;
+      } else if (tx.expense_id) {
+        actionButton = `<button class="link-btn">Trocar vínculo</button>`;
+      } else {
+        actionButton = `<button class="link-btn create-expense-btn">+ Incluir despesa</button>`;
+      }
+      tr.innerHTML = `
+        <td class="muted">${dateFmt}</td>
+        <td>${escapeHtml(tx.description)}</td>
+        <td style="color:${isIncome ? 'var(--green)' : 'var(--red)'}; font-weight:600;">${isIncome ? '+' : '-'} ${amountFmt}</td>
+        <td><span class="status-badge ${isIncome ? 'status-paid' : 'status-overdue'}">${isIncome ? 'Entrada' : 'Saída'}</span></td>
+        <td>${linkLabel}</td>
+        <td>
+          <div class="row-actions">
+            ${actionButton}
+            <button class="edit-btn">Editar</button>
+            <button class="delete">Excluir</button>
+          </div>
+        </td>
+      `;
+      const linkOrCreateBtn = tr.querySelector('.link-btn');
+      if (!isIncome && !tx.expense_id) {
+        linkOrCreateBtn.addEventListener('click', () => openExpenseModalFromTransaction(tx));
+      } else {
+        linkOrCreateBtn.addEventListener('click', () => openLinkModal(tx));
+      }
+      tr.querySelector('.edit-btn').addEventListener('click', () => openTransactionModal(tx));
+      tr.querySelector('.delete').addEventListener('click', () => deleteTransaction(tx.id));
+      bankTbody.appendChild(tr);
+    });
+  }
+
+  async function deleteTransaction(id) {
+    if (!confirm('Excluir essa transação? Essa ação não pode ser desfeita.')) return;
+    const { error } = await sb.from('bank_transactions').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir: ' + error.message);
+      return;
+    }
+    showToast('Transação excluída.');
+    loadTransactions();
+  }
+
+  // ---------- Vínculo (Conciliação) ----------
+  const linkModal = document.getElementById('link-modal');
+  let linkingTx = null;
+
+  document.getElementById('cancel-link-modal').addEventListener('click', () => linkModal.classList.remove('open'));
+  linkModal.addEventListener('click', (e) => { if (e.target === linkModal) linkModal.classList.remove('open'); });
+
+  async function openLinkModal(tx) {
+    linkingTx = tx;
+    const isIncome = tx.amount >= 0;
+    document.getElementById('link-modal-title').textContent = isIncome ? 'Vincular a uma invoice' : 'Vincular a uma despesa';
+    const amountFmt = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Math.abs(tx.amount));
+    document.getElementById('link-modal-info').textContent = `${tx.description} — ${amountFmt}`;
+
+    const select = document.getElementById('link-select');
+    select.innerHTML = '<option value="">Selecione...</option>';
+
+    if (isIncome) {
+      const { data } = await sb
+        .from('invoices')
+        .select('id, invoice_number, amount, clients(name)')
+        .not('status', 'in', '(paid,cancelled)')
+        .order('created_at', { ascending: false });
+      const seen = new Set();
+      (data || []).forEach(inv => {
+        if (seen.has(inv.id)) return;
+        seen.add(inv.id);
+        const opt = document.createElement('option');
+        opt.value = inv.id;
+        opt.textContent = `${inv.invoice_number} — ${inv.clients?.name || ''} — $${inv.amount}`;
+        select.appendChild(opt);
+      });
+    } else {
+      const { data } = await sb.from('expenses').select('id, description, amount').order('expense_date', { ascending: false });
+      const seen = new Set();
+      (data || []).forEach(exp => {
+        if (seen.has(exp.id)) return;
+        seen.add(exp.id);
+        const opt = document.createElement('option');
+        opt.value = exp.id;
+        opt.textContent = `${exp.description} — $${exp.amount}`;
+        select.appendChild(opt);
+      });
+    }
+    linkModal.classList.add('open');
+  }
+
+  document.getElementById('confirm-link').addEventListener('click', async () => {
+    const selectedId = document.getElementById('link-select').value;
+    if (!selectedId || !linkingTx) {
+      showToast('Selecione um item pra vincular.');
+      return;
+    }
+    const isIncome = linkingTx.amount >= 0;
+    const payload = isIncome
+      ? { invoice_id: selectedId, expense_id: null }
+      : { invoice_id: null, expense_id: selectedId };
+
+    const { error } = await sb.from('bank_transactions').update(payload).eq('id', linkingTx.id);
+    if (error) {
+      showToast('Erro ao vincular: ' + error.message);
+      return;
+    }
+
+    // Se vinculado a invoice, marca como paga automaticamente
+    if (isIncome) {
+      await sb.from('invoices').update({ status: 'paid' }).eq('id', selectedId);
+    }
+
+    linkModal.classList.remove('open');
+    showToast('Vínculo salvo.');
+    loadTransactions();
+  });
+
+  // ---------- Importação de CSV ----------
+  const csvModal = document.getElementById('csv-modal');
+  let csvParsedRows = [];
+
+  document.getElementById('import-csv-btn').addEventListener('click', () => {
+    document.getElementById('csv-file').value = '';
+    document.getElementById('csv-preview').innerHTML = '';
+    document.getElementById('confirm-csv-import').disabled = true;
+    csvParsedRows = [];
+    csvModal.classList.add('open');
+  });
+  document.getElementById('cancel-csv-modal').addEventListener('click', () => csvModal.classList.remove('open'));
+  csvModal.addEventListener('click', (e) => { if (e.target === csvModal) csvModal.classList.remove('open'); });
+
+  document.getElementById('csv-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target.result;
+      const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+      // Detecta se a primeira linha é cabeçalho (2ª coluna não é um número)
+      const firstCols = rawLines[0] ? rawLines[0].split(',') : [];
+      const looksLikeHeader = firstCols[1] && isNaN(parseFloat(firstCols[1].replace(/[^0-9.-]/g, '')));
+      const lines = looksLikeHeader ? rawLines.slice(1) : rawLines;
+
+      function parseDateFlexible(str) {
+        str = str.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // já está AAAA-MM-DD
+        const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); // DD/MM/AAAA
+        if (dmy) {
+          const [, d, m, y] = dmy;
+          return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
+        return str;
+      }
+
+      csvParsedRows = lines.map(line => {
+        const parts = line.split(',');
+        return {
+          date: parseDateFlexible(parts[0] || ''),
+          amount: parseFloat((parts[1] || '0').replace(/[^0-9.-]/g, '')),
+          description: (parts[2] || '').trim(),
+          // parts[3] = saldo da conta, ignorado por enquanto
+        };
+      }).filter(r => r.date && !isNaN(r.amount));
+
+      const preview = document.getElementById('csv-preview');
+      if (csvParsedRows.length === 0) {
+        preview.innerHTML = '<p class="muted">Nenhuma linha válida encontrada. Confira o formato do arquivo.</p>';
+        document.getElementById('confirm-csv-import').disabled = true;
+        return;
+      }
+      preview.innerHTML = `<p class="muted" style="font-size:13px;">${csvParsedRows.length} transações encontradas:</p>` +
+        '<table style="width:100%; font-size:13px;"><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>' +
+        csvParsedRows.slice(0, 50).map(r => `<tr><td class="muted">${escapeHtml(r.date)}</td><td class="muted">${escapeHtml(r.description)}</td><td>${r.amount.toFixed(2)}</td></tr>`).join('') +
+        '</tbody></table>';
+      document.getElementById('confirm-csv-import').disabled = false;
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('confirm-csv-import').addEventListener('click', async () => {
+    if (csvParsedRows.length === 0) return;
+    const payload = csvParsedRows.map(r => ({
+      transaction_date: r.date,
+      description: r.description,
+      amount: r.amount,
+    }));
+    const { error } = await sb.from('bank_transactions').insert(payload);
+    if (error) {
+      showToast('Erro ao importar: ' + error.message);
+      return;
+    }
+    csvModal.classList.remove('open');
+    showToast(`${payload.length} transações importadas.`);
+    loadTransactions();
+  });
+
+  // ---------- Dashboard ----------
+  let cashflowChartInstance = null;
+  let expenseCategoryChartInstance = null;
+  let revenueClientTypeChartInstance = null;
+
+  function fmtAUD(v) {
+    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(v || 0);
+  }
+
+  function populateDashboardMonthSelect() {
+    const select = document.getElementById('dashboard-month');
+    if (select.dataset.loaded) return;
+    const now = new Date();
+    const options = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${d.getMonth()}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      options.push(`<option value="${value}">${label.charAt(0).toUpperCase() + label.slice(1)}</option>`);
+    }
+    select.innerHTML = options.join('');
+    select.dataset.loaded = 'true';
+    select.addEventListener('change', loadDashboard);
+  }
+
+  async function loadDashboard() {
+    populateDashboardMonthSelect();
+
+    const [invoicesRes, txRes] = await Promise.all([
+      sb.from('invoices').select('*, clients(name, client_type)'),
+      sb.from('bank_transactions').select('*, invoices(invoice_number, clients(name, client_type)), expenses(category, supplier, description)'),
+    ]);
+
+    const invoices = invoicesRes.data || [];
+    const transactions = txRes.data || [];
+
+    const now = new Date();
+    const selected = document.getElementById('dashboard-month').value.split('-');
+    const currentYear = parseInt(selected[0], 10);
+    const currentMonth = parseInt(selected[1], 10);
+
+    // ---------- KPIs ----------
+    const txThisMonth = transactions.filter(t => {
+      const d = new Date(t.transaction_date + 'T00:00:00');
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const monthBalance = txThisMonth.reduce((sum, t) => sum + Number(t.amount), 0);
+    document.getElementById('kpi-balance').textContent = fmtAUD(monthBalance);
+
+    // "Deveria" — baseado em invoice, independente de já ter sido conciliado
+    const receivable = invoices
+      .filter(i => ['draft', 'sent', 'overdue'].includes(i.status))
+      .reduce((sum, i) => sum + Number(i.amount), 0);
+    document.getElementById('kpi-receivable').textContent = fmtAUD(receivable);
+
+    const overdue = invoices
+      .filter(i => i.status === 'overdue')
+      .reduce((sum, i) => sum + Number(i.amount), 0);
+    document.getElementById('kpi-overdue').textContent = fmtAUD(overdue);
+
+    // "Realizado" — só transações conciliadas de saída, no mês
+    const expensesThisMonth = txThisMonth
+      .filter(t => t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+    document.getElementById('kpi-payable').textContent = fmtAUD(expensesThisMonth);
+
+    // ---------- Fluxo de caixa (6 meses terminando no mês selecionado) ----------
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1);
+      months.push({ label: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), month: d.getMonth(), year: d.getFullYear() });
+    }
+    const incomeByMonth = months.map(m =>
+      transactions.filter(t => {
+        const d = new Date(t.transaction_date + 'T00:00:00');
+        return d.getMonth() === m.month && d.getFullYear() === m.year && t.amount > 0;
+      }).reduce((s, t) => s + Number(t.amount), 0)
+    );
+    const expenseByMonth = months.map(m =>
+      transactions.filter(t => {
+        const d = new Date(t.transaction_date + 'T00:00:00');
+        return d.getMonth() === m.month && d.getFullYear() === m.year && t.amount < 0;
+      }).reduce((s, t) => s + Math.abs(Number(t.amount)), 0)
+    );
+
+    if (cashflowChartInstance) cashflowChartInstance.destroy();
+    cashflowChartInstance = new Chart(document.getElementById('chart-cashflow'), {
+      type: 'bar',
+      data: {
+        labels: months.map(m => m.label),
+        datasets: [
+          { label: 'Entradas', data: incomeByMonth, backgroundColor: '#e6821e', borderRadius: 6 },
+          { label: 'Saídas', data: expenseByMonth, backgroundColor: '#1a1a1a', borderRadius: 6 },
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtAUD(ctx.parsed.y)}` } }
+        },
+        scales: { y: { beginAtZero: true, ticks: { callback: (v) => fmtAUD(v) } } }
+      }
+    });
+
+    // Só as transações conciliadas (vinculadas) entram nos gráficos "realizado" abaixo
+    const reconciledExpenseTx = transactions.filter(t => t.amount < 0 && t.expense_id && t.expenses);
+    const reconciledIncomeTx = transactions.filter(t => t.amount > 0 && t.invoice_id && t.invoices);
+
+    // ---------- Despesas por categoria (só conciliadas) ----------
+    const categoryTotals = {};
+    reconciledExpenseTx.forEach(t => {
+      const cat = t.expenses.category || 'Outros';
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + Math.abs(Number(t.amount));
+    });
+    const categoryColors = ['#e6821e', '#1a5f7a', '#2f9e6f', '#8f3323', '#6b5b95', '#c76c12', '#4a4640'];
+    if (expenseCategoryChartInstance) expenseCategoryChartInstance.destroy();
+    expenseCategoryChartInstance = new Chart(document.getElementById('chart-expenses-category'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(categoryTotals),
+        datasets: [{ data: Object.values(categoryTotals), backgroundColor: categoryColors }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtAUD(ctx.parsed)}` } }
+        }
+      }
+    });
+
+    // ---------- Faturamento por tipo de cliente (só conciliadas) ----------
+    const revenueByType = {};
+    reconciledIncomeTx.forEach(t => {
+      const type = t.invoices.clients?.client_type || 'Sem tipo';
+      revenueByType[type] = (revenueByType[type] || 0) + Number(t.amount);
+    });
+    const typeColors = ['#1a5f7a', '#e6821e', '#2f9e6f', '#8f3323', '#6b5b95'];
+    if (revenueClientTypeChartInstance) revenueClientTypeChartInstance.destroy();
+    revenueClientTypeChartInstance = new Chart(document.getElementById('chart-revenue-client-type'), {
+      type: 'bar',
+      data: {
+        labels: Object.keys(revenueByType),
+        datasets: [{ data: Object.values(revenueByType), backgroundColor: typeColors, borderRadius: 6 }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => fmtAUD(ctx.parsed.x) } }
+        },
+        scales: { x: { beginAtZero: true, ticks: { callback: (v) => fmtAUD(v) } } }
+      }
+    });
+
+    // ---------- Ranking de fornecedores (só conciliadas) ----------
+    const supplierTotals = {};
+    reconciledExpenseTx.forEach(t => {
+      const sup = t.expenses.supplier;
+      if (!sup) return;
+      supplierTotals[sup] = (supplierTotals[sup] || 0) + Math.abs(Number(t.amount));
+    });
+    const supplierRanked = Object.entries(supplierTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const medals = ['🥇', '🥈', '🥉', '4º', '5º'];
+    const supplierEl = document.getElementById('supplier-ranking');
+    supplierEl.innerHTML = supplierRanked.length
+      ? supplierRanked.map(([name, total], i) =>
+          `<div class="rank-row"><span><span class="rank-medal">${medals[i]}</span>${escapeHtml(name)}</span><span class="rank-value">${fmtAUD(total)}</span></div>`
+        ).join('')
+      : '<p class="muted">Nenhuma despesa conciliada com fornecedor ainda.</p>';
+
+    // ---------- Top 5 clientes (só conciliadas) ----------
+    const clientTotals = {};
+    reconciledIncomeTx.forEach(t => {
+      const name = t.invoices.clients?.name || 'Sem cliente';
+      clientTotals[name] = (clientTotals[name] || 0) + Number(t.amount);
+    });
+    const clientRanked = Object.entries(clientTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const topClientsEl = document.getElementById('top-clients');
+    topClientsEl.innerHTML = clientRanked.length
+      ? clientRanked.map(([name, total], i) =>
+          `<div class="rank-row"><span><span class="rank-medal">${medals[i]}</span>${escapeHtml(name)}</span><span class="rank-value">${fmtAUD(total)}</span></div>`
+        ).join('')
+      : '<p class="muted">Nenhuma invoice conciliada ainda.</p>';
+
+    // ---------- Invoices vencendo em 7 dias ----------
+    const in7days = new Date();
+    in7days.setDate(in7days.getDate() + 7);
+    const upcoming = invoices.filter(i => {
+      if (!i.due_date || !['draft', 'sent'].includes(i.status)) return false;
+      const d = new Date(i.due_date + 'T00:00:00');
+      return d >= now && d <= in7days;
+    }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+    const upcomingEl = document.getElementById('upcoming-invoices');
+    upcomingEl.innerHTML = upcoming.length
+      ? upcoming.map(i => {
+          const d = new Date(i.due_date + 'T00:00:00').toLocaleDateString('pt-BR');
+          return `<div class="rank-row"><span>${escapeHtml(i.invoice_number)} — ${escapeHtml(i.clients?.name || '')}</span><span class="rank-value">${d}</span></div>`;
+        }).join('')
+      : '<p class="muted">Nenhuma invoice vencendo nos próximos 7 dias. 🎉</p>';
+
+    // ---------- Saúde da conciliação ----------
+    const linked = transactions.filter(t => t.invoice_id || t.expense_id).length;
+    const total = transactions.length;
+    const pct = total > 0 ? Math.round((linked / total) * 100) : 0;
+    const recoEl = document.getElementById('reconciliation-health');
+    recoEl.innerHTML = `
+      <div class="reco-gauge-wrap">
+        <span class="reco-gauge-pct">${pct}%</span>
+        <div class="reco-bar-bg"><div class="reco-bar-fill" style="width:${pct}%;"></div></div>
+        <span class="muted" style="font-size:13px;">${linked} de ${total} transações conciliadas</span>
+      </div>
+    `;
+  }
+
+  // ---------- Dashboard: Fluxo por Cliente ----------
+  async function loadDashboardClientView() {
+    const select = document.getElementById('dash-client-select');
+    if (!select.dataset.loaded) {
+      const { data: clients } = await sb.from('clients').select('id, name').order('name');
+      (clients || []).forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        select.appendChild(opt);
+      });
+      select.dataset.loaded = 'true';
+      select.addEventListener('change', renderClientFlow);
+    }
+    document.getElementById('dash-client-content').style.display = 'none';
+    document.getElementById('dash-client-empty').style.display = 'block';
+    select.value = '';
+  }
+
+  async function renderClientFlow() {
+    const clientId = document.getElementById('dash-client-select').value;
+    const content = document.getElementById('dash-client-content');
+    const emptyMsg = document.getElementById('dash-client-empty');
+
+    if (!clientId) {
+      content.style.display = 'none';
+      emptyMsg.style.display = 'block';
+      return;
+    }
+
+    const [invoicesRes, expensesRes] = await Promise.all([
+      sb.from('invoices').select('id, invoice_number').eq('client_id', clientId),
+      sb.from('expenses').select('id').eq('client_id', clientId),
+    ]);
+
+    const invoiceIds = (invoicesRes.data || []).map(i => i.id);
+    const expenseIds = (expensesRes.data || []).map(e => e.id);
+
+    let combined = [];
+    if (invoiceIds.length > 0) {
+      const { data: incomeTx } = await sb
+        .from('bank_transactions')
+        .select('*, invoices(invoice_number)')
+        .in('invoice_id', invoiceIds);
+      combined.push(...(incomeTx || []).map(t => ({
+        date: t.transaction_date,
+        type: 'income',
+        description: `${t.description} (Invoice ${t.invoices?.invoice_number || ''})`,
+        amount: Number(t.amount),
+      })));
+    }
+    if (expenseIds.length > 0) {
+      const { data: expenseTx } = await sb
+        .from('bank_transactions')
+        .select('*, expenses(description)')
+        .in('expense_id', expenseIds);
+      combined.push(...(expenseTx || []).map(t => ({
+        date: t.transaction_date,
+        type: 'expense',
+        description: `${t.description} (${t.expenses?.description || ''})`,
+        amount: Number(t.amount),
+      })));
+    }
+    combined.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+    const totalRevenue = combined.filter(i => i.type === 'income').reduce((sum, i) => sum + i.amount, 0);
+    const totalCost = combined.filter(i => i.type === 'expense').reduce((sum, i) => sum + Math.abs(i.amount), 0);
+    const net = totalRevenue - totalCost;
+
+    document.getElementById('dc-revenue').textContent = fmtAUD(totalRevenue);
+    document.getElementById('dc-cost').textContent = fmtAUD(totalCost);
+    document.getElementById('dc-net').textContent = fmtAUD(net);
+
+    const tbody = document.getElementById('dash-client-tbody');
+    tbody.innerHTML = '';
+    if (combined.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center; padding:24px;">Nenhuma transação conciliada pra esse cliente ainda. Vincule invoices/despesas na tela de Banco/Conciliação.</td></tr>';
+    } else {
+      combined.forEach(item => {
+        const isIncome = item.type === 'income';
+        const dateFmt = item.date ? new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="muted">${dateFmt}</td>
+          <td><span class="status-badge ${isIncome ? 'status-paid' : 'status-overdue'}">${isIncome ? 'Entrada' : 'Saída'}</span></td>
+          <td>${escapeHtml(item.description || '—')}</td>
+          <td style="color:${isIncome ? 'var(--green)' : 'var(--red)'}; font-weight:600;">${isIncome ? '+' : '-'} ${fmtAUD(Math.abs(item.amount))}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    content.style.display = 'block';
+    emptyMsg.style.display = 'none';
+  }
+
+  // ---------- Init ----------
+  checkSession();
+</script>
+
+</body>
+</html>

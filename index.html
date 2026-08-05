@@ -685,7 +685,7 @@
         </div>
       </div>
 
-      <form action="https://formsubmit.co/Handymatemelbourne@gmail.com" method="POST">
+      <form action="https://formsubmit.co/Handymatemelbourne@gmail.com" method="POST" enctype="multipart/form-data">
         <input type="hidden" name="_subject" value="New enquiry — Handymate Melbourne website">
         <input type="hidden" name="_template" value="table">
         <input type="hidden" name="_captcha" value="false">
@@ -704,6 +704,11 @@
         <div>
           <label for="f-message">What do you need done?</label>
           <textarea id="f-message" name="Message" required></textarea>
+        </div>
+        <div>
+          <label for="f-photos">Photos (optional)</label>
+          <input type="file" id="f-photos" name="attachment" accept="image/*" multiple style="padding:10px; background:#0f0f0f; border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:#cfcac2; font-size:13px;">
+          <p style="font-size:11.5px; color:#8a8580; margin-top:6px;">You can select multiple photos. Max 5MB total.</p>
         </div>
         <button type="submit" class="btn btn-orange">Send Enquiry</button>
       </form>

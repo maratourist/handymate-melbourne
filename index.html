@@ -353,7 +353,7 @@
     gap: 46px;
     align-items: center;
   }
-  @media (min-width: 900px) { .about-grid { grid-template-columns: 0.9fr 1.1fr; } }
+  @media (min-width: 900px) { .about-grid { grid-template-columns: 0.8fr 1.2fr; align-items: start; } }
   .about-photo {
     border-radius: 18px;
     overflow: hidden;
@@ -371,6 +371,14 @@
   }
   .about-item h4 { font-size: 15.5px; margin-bottom: 4px; }
   .about-item p { font-size: 13.5px; color: #6b665d; line-height: 1.5; }
+  .about-copy p {
+    font-size: 14.5px;
+    line-height: 1.75;
+    color: #4a453e;
+    margin-bottom: 18px;
+  }
+  .about-copy p:last-child { margin-bottom: 0; }
+  .about-copy strong { color: var(--ink); }
 
   /* ---------- Contact ---------- */
   .contact {
@@ -629,26 +637,41 @@
 
 <!-- ================= ABOUT ================= -->
 <section class="about" id="about">
-  <div class="container about-grid">
-    <div class="about-photo">
-      <img src="hero-worker.jpg" alt="Handymate Melbourne at work">
+  <div class="container">
+    <div class="section-head" style="max-width:800px;">
+      <div class="eyebrow" style="color:var(--orange-deep);">Our Story</div>
+      <h2>About Handymate Melbourne</h2>
     </div>
-    <div>
-      <div class="eyebrow" style="color:var(--orange-deep);">Why Handymate</div>
-      <h2 style="font-size:clamp(28px,4vw,40px); color:var(--ink);">One team you can actually rely on.</h2>
-      <div class="about-list">
-        <div class="about-item">
-          <span class="num">01</span>
-          <div><h4>Straight answers, fair pricing</h4><p>You'll know the scope and the cost before we start — no surprises on the invoice.</p></div>
+
+    <div class="about-grid">
+      <div>
+        <div class="about-photo">
+          <img src="hero-worker.jpg" alt="Handymate Melbourne at work">
         </div>
-        <div class="about-item">
-          <span class="num">02</span>
-          <div><h4>Same team, every visit</h4><p>You deal with people who already know your property, not a rotating roster.</p></div>
+        <div class="about-list">
+          <div class="about-item">
+            <span class="num">8+</span>
+            <div><h4>Years in business</h4><p>Founded in SA as Handymate Adelaide, now proudly based in Melbourne.</p></div>
+          </div>
+          <div class="about-item">
+            <span class="num">👪</span>
+            <div><h4>Family-owned</h4><p>Built on craftsmanship, integrity and an uncompromising commitment to quality.</p></div>
+          </div>
+          <div class="about-item">
+            <span class="num">🇦🇺</span>
+            <div><h4>Australia-wide</h4><p>Residential and commercial projects delivered from our Melbourne HQ.</p></div>
+          </div>
         </div>
-        <div class="about-item">
-          <span class="num">03</span>
-          <div><h4>Built for Melbourne properties</h4><p>Homes, offices, and commercial sites across Melbourne — residential and B2B.</p></div>
-        </div>
+      </div>
+
+      <div class="about-copy">
+        <p>Handymate Melbourne is a family-owned construction and renovation company built on craftsmanship, integrity, and an uncompromising commitment to quality.</p>
+        <p>Founded by <strong>Fagner Franca</strong> over eight years ago in SA as Handymate Adelaide, the company expanded to Melbourne three years later when <strong>Melissa Gazen</strong> joined the business. Melissa is currently completing a <strong>Diploma of Building and Construction</strong>, reinforcing Handymate Melbourne's vision of combining hands-on expertise with professional leadership as the company's future registered builder.</p>
+        <p>From our headquarters in Melbourne, we proudly deliver residential and commercial projects for clients across Australia.</p>
+        <p>Our multidisciplinary team brings together qualified tradespeople and specialists across every stage of the construction process. From structural works and complete renovations to the finest finishing details, we manage projects with precision, professionalism, and exceptional attention to detail.</p>
+        <p>Our portfolio includes luxury bathroom and kitchen renovations, complete home transformations, restaurants, cafés, beauty salons, laboratories, decks, pergolas, sheds, bespoke carpentry, painting, plastering, tiling, and a wide range of custom construction solutions. Whether undertaking a minor repair or a full-scale renovation, every project receives the same dedication to excellence.</p>
+        <p><strong>Finishing is where Handymate Melbourne truly stands apart.</strong> We believe outstanding craftsmanship is defined by the details that others often overlook. Perfectly applied silicone, seamless grout lines, crisp corners, flawless paintwork, clean transitions, and immaculate finishes are the standards we hold ourselves to on every project. Our clients notice the difference because we never consider a job complete until every detail reflects the highest level of workmanship.</p>
+        <p>At Handymate Melbourne, we don't simply build or renovate, we create spaces that combine functionality, durability, and timeless aesthetics. Every project is delivered with the care, precision, and pride that have become the foundation of our reputation.</p>
       </div>
     </div>
   </div>

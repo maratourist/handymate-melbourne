@@ -2046,8 +2046,8 @@
     doc.text('Amount due', pageWidth - marginX - 200, rowY);
     doc.text(new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(invoice.amount), pageWidth - marginX, rowY, { align: 'right' });
 
-    // ---------- Pagamento ----------
-    let payY = rowY + 50;
+    // ---------- Pagamento (sempre abaixo da marca d'água) ----------
+    let payY = Math.max(rowY + 40, 620);
     doc.setFillColor(...lightRow);
     doc.roundedRect(marginX, payY, pageWidth - marginX * 2, 78, 8, 8, 'F');
     doc.setFontSize(8.5);
@@ -2603,9 +2603,9 @@
 
   // ---------- Enviar orçamento por email ----------
   // Configuração do EmailJS — preencha com as chaves da sua conta em emailjs.com
-  const EMAILJS_PUBLIC_KEY = 'COLE_AQUI_SUA_PUBLIC_KEY';
-  const EMAILJS_SERVICE_ID = 'COLE_AQUI_SEU_SERVICE_ID';
-  const EMAILJS_TEMPLATE_ID = 'COLE_AQUI_SEU_TEMPLATE_ID';
+  const EMAILJS_PUBLIC_KEY = 'dXd0cGFEZtnVoSgJy';
+  const EMAILJS_SERVICE_ID = 'service_rxlzedq';
+  const EMAILJS_TEMPLATE_ID = 'template_9997pkm';
   if (window.emailjs && EMAILJS_PUBLIC_KEY !== 'COLE_AQUI_SUA_PUBLIC_KEY') {
     emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
   }

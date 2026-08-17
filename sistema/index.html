@@ -2241,9 +2241,24 @@
     submitBtn.disabled = true;
 
     const id = document.getElementById('q-id').value;
+
+    // Versionamento: se estiver editando, incrementa a versão e adiciona _v2, _v3... no número
+    let quoteNumberToSave = document.getElementById('q-number').value;
+    let baseNumberToSave = quoteNumberToSave;
+    let versionToSave = 1;
+
+    if (id) {
+      const existing = allQuotes.find(q => q.id === id) || {};
+      baseNumberToSave = existing.base_number || existing.quote_number || quoteNumberToSave;
+      versionToSave = (existing.version || 1) + 1;
+      quoteNumberToSave = versionToSave > 1 ? `${baseNumberToSave}_v${versionToSave}` : baseNumberToSave;
+    }
+
     const payload = {
       client_id: document.getElementById('q-client').value,
-      quote_number: document.getElementById('q-number').value,
+      quote_number: quoteNumberToSave,
+      base_number: baseNumberToSave,
+      version: versionToSave,
       description: document.getElementById('q-description').value.trim() || null,
       amount: amountToNumber(document.getElementById('q-amount').value),
       status: document.getElementById('q-status').value,
@@ -2286,7 +2301,7 @@
     }
 
     closeQuoteModal();
-    showToast(id ? 'Orçamento atualizado e PDF gerado.' : 'Orçamento criado e PDF gerado.');
+    showToast(id ? `Orçamento atualizado (versão ${versionToSave}) e PDF gerado.` : 'Orçamento criado e PDF gerado.');
     loadQuotes();
   });
 

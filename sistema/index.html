@@ -607,12 +607,12 @@
         <table>
           <thead>
             <tr>
-              <th>Nome</th>
-              <th>Tipo</th>
-              <th>Email</th>
-              <th>Telefone</th>
-              <th>Status</th>
-              <th></th>
+              <th style="width:17%;">Nome</th>
+              <th style="width:13%;">Tipo</th>
+              <th style="width:28%;">Email</th>
+              <th style="width:14%;">Telefone</th>
+              <th style="width:10%;">Status</th>
+              <th style="width:18%; white-space:nowrap;">Ações</th>
             </tr>
           </thead>
           <tbody id="clients-tbody"></tbody>
@@ -1470,9 +1470,9 @@
         <td class="muted">${escapeHtml(client.phone || '—')}</td>
         <td>${statusLabel}</td>
         <td>
-          <div class="row-actions">
-            <button class="edit-btn">Editar</button>
-            <button class="delete">Excluir</button>
+          <div class="row-actions" style="flex-direction:row; flex-wrap:nowrap; gap:6px;">
+            <button class="edit-btn" style="width:auto; padding:5px 12px;">Editar</button>
+            <button class="delete" style="width:auto; padding:5px 12px;">Excluir</button>
           </div>
         </td>
       `;
@@ -2241,32 +2241,44 @@
     submitBtn.disabled = true;
 
     const id = document.getElementById('q-id').value;
+    const existing = id ? (allQuotes.find(q => q.id === id) || {}) : {};
 
-    // Versionamento: se estiver editando, incrementa a versão e adiciona _v2, _v3... no número
-    let quoteNumberToSave = document.getElementById('q-number').value;
-    let baseNumberToSave = quoteNumberToSave;
-    let versionToSave = 1;
-
-    if (id) {
-      const existing = allQuotes.find(q => q.id === id) || {};
-      baseNumberToSave = existing.base_number || existing.quote_number || quoteNumberToSave;
-      versionToSave = (existing.version || 1) + 1;
-      quoteNumberToSave = versionToSave > 1 ? `${baseNumberToSave}_v${versionToSave}` : baseNumberToSave;
-    }
-
-    const payload = {
+    const newContent = {
       client_id: document.getElementById('q-client').value,
-      quote_number: quoteNumberToSave,
-      base_number: baseNumberToSave,
-      version: versionToSave,
       description: document.getElementById('q-description').value.trim() || null,
       amount: amountToNumber(document.getElementById('q-amount').value),
-      status: document.getElementById('q-status').value,
       issue_date: document.getElementById('q-issue-date').value || null,
       valid_until: document.getElementById('q-valid-until').value || null,
       payment_terms: document.getElementById('q-payment-terms').value.trim() || null,
       materials_note: document.getElementById('q-materials-note').value.trim() || null,
       scope_note: document.getElementById('q-scope-note').value.trim() || null,
+    };
+
+    // Verifica se algum campo de CONTEÚDO mudou (ignora status na comparação)
+    const contentChanged = !id || Object.keys(newContent).some(key => {
+      const oldVal = existing[key] ?? null;
+      const newVal = newContent[key] ?? null;
+      return String(oldVal) !== String(newVal);
+    });
+
+    // Só versiona (adiciona _v2, _v3...) se o conteúdo realmente mudou
+    let quoteNumberToSave = document.getElementById('q-number').value;
+    let baseNumberToSave = quoteNumberToSave;
+    let versionToSave = 1;
+
+    if (id) {
+      baseNumberToSave = existing.base_number || existing.quote_number || quoteNumberToSave;
+      versionToSave = existing.version || 1;
+      if (contentChanged) versionToSave += 1;
+      quoteNumberToSave = versionToSave > 1 ? `${baseNumberToSave}_v${versionToSave}` : baseNumberToSave;
+    }
+
+    const payload = {
+      ...newContent,
+      quote_number: quoteNumberToSave,
+      base_number: baseNumberToSave,
+      version: versionToSave,
+      status: document.getElementById('q-status').value,
     };
 
     if (!payload.client_id) {
@@ -2289,19 +2301,29 @@
       return;
     }
 
-    // Busca o orçamento salvo (com dados do cliente) e já gera o PDF automaticamente
-    const { data: savedQuote } = await sb
-      .from('quotes')
-      .select('*, clients(name, client_type, email, phone, address)')
-      .eq(id ? 'id' : 'quote_number', id || payload.quote_number)
-      .single();
+    // Só regenera o PDF se o conteúdo mudou (mudança só de status não precisa de PDF novo)
+    if (contentChanged) {
+      const { data: savedQuote } = await sb
+        .from('quotes')
+        .select('*, clients(name, client_type, email, phone, address)')
+        .eq(id ? 'id' : 'quote_number', id || payload.quote_number)
+        .single();
 
-    if (savedQuote) {
-      await generateQuotePdfSilently(savedQuote);
+      if (savedQuote) {
+        await generateQuotePdfSilently(savedQuote);
+      }
     }
 
     closeQuoteModal();
-    showToast(id ? `Orçamento atualizado (versão ${versionToSave}) e PDF gerado.` : 'Orçamento criado e PDF gerado.');
+    let saveMessage;
+    if (!id) {
+      saveMessage = 'Orçamento criado e PDF gerado.';
+    } else if (contentChanged) {
+      saveMessage = `Orçamento atualizado (versão ${versionToSave}) e PDF regenerado.`;
+    } else {
+      saveMessage = 'Status atualizado. PDF mantido (sem alteração de conteúdo).';
+    }
+    showToast(saveMessage);
     loadQuotes();
   });
 

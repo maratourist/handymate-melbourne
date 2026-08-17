@@ -641,13 +641,12 @@
         <table>
           <thead>
             <tr>
-              <th style="width:15%;">Número</th>
-              <th style="width:15%;">Cliente</th>
-              <th style="width:19%;">Descrição</th>
-              <th style="width:11%;">Valor</th>
-              <th style="width:10%;">Status</th>
-              <th style="width:10%;">Vencimento</th>
-              <th style="width:20%; white-space:nowrap;"></th>
+              <th style="width:22%;">Número</th>
+              <th style="width:22%;">Cliente</th>
+              <th style="width:15%;">Valor</th>
+              <th style="width:13%;">Status</th>
+              <th style="width:13%;">Vencimento</th>
+              <th style="width:15%; white-space:nowrap;">Ações</th>
             </tr>
           </thead>
           <tbody id="invoices-tbody"></tbody>
@@ -1728,30 +1727,23 @@
       const tr = document.createElement('tr');
       const amountFmt = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(inv.amount);
       const dueFmt = inv.due_date ? new Date(inv.due_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
-      const descText = inv.description || '';
-      const isTruncated = descText.length > 40;
-      const descPreview = isTruncated ? descText.slice(0, 40) + '…' : (descText || '—');
       tr.innerHTML = `
         <td>${escapeHtml(inv.invoice_number)}</td>
         <td>${escapeHtml(inv.clients?.name || '—')}</td>
-        <td class="muted" style="${isTruncated ? 'cursor:pointer; text-decoration:underline dotted;' : ''}">${escapeHtml(descPreview)}</td>
         <td>${amountFmt}</td>
         <td><span class="status-badge status-${inv.status}">${statusLabels[inv.status]}</span></td>
         <td class="muted">${dueFmt}</td>
         <td>
           <div class="row-actions">
             <button class="pdf-btn">${inv.pdf_path ? 'Ver PDF' : 'Gerar PDF'}</button>
+            <button class="send-btn">Enviar</button>
             <button class="edit-btn">Editar</button>
-            <button class="delete">Excluir</button>
           </div>
         </td>
       `;
-      if (isTruncated) {
-        tr.querySelector('td.muted').addEventListener('click', () => openDescModal(descText));
-      }
       tr.querySelector('.pdf-btn').addEventListener('click', () => handlePdfClick(inv));
+      tr.querySelector('.send-btn').addEventListener('click', () => sendInvoiceEmail(inv));
       tr.querySelector('.edit-btn').addEventListener('click', () => openInvoiceModal(inv));
-      tr.querySelector('.delete').addEventListener('click', () => deleteInvoice(inv.id, inv.invoice_number));
       invoicesTbody.appendChild(tr);
     });
   }
@@ -1815,16 +1807,17 @@
   }
 
   async function handlePdfClick(invoice) {
-    if (invoice.pdf_path) {
-      const { data, error } = await sb.storage.from('invoice-pdfs').createSignedUrl(invoice.pdf_path, 120);
-      if (error) {
-        showToast('Erro ao abrir PDF: ' + error.message);
-        return;
-      }
-      window.open(data.signedUrl, '_blank');
+    if (!invoice.pdf_path) {
+      const path = await generateAndStoreInvoicePdf(invoice);
+      if (!path) return;
+      invoice.pdf_path = path;
+    }
+    const { data, error } = await sb.storage.from('invoice-pdfs').createSignedUrl(invoice.pdf_path, 120);
+    if (error) {
+      showToast('Erro ao abrir PDF: ' + error.message);
       return;
     }
-    await generateAndStoreInvoicePdf(invoice);
+    window.open(data.signedUrl, '_blank');
   }
 
   // Interpreta a descrição em linhas "Descrição $valor" -> itens de tabela
@@ -2038,15 +2031,16 @@
 
     const { error: updateError } = await sb
       .from('invoices')
-      .update({ pdf_path: path, status: 'sent' })
+      .update({ pdf_path: path })
       .eq('id', invoice.id);
 
     if (updateError) {
-      showToast('PDF salvo, mas erro ao atualizar status: ' + updateError.message);
+      showToast('PDF salvo, mas erro ao atualizar registro: ' + updateError.message);
     } else {
-      showToast('PDF gerado e invoice marcada como Enviada.');
+      showToast('PDF gerado com sucesso.');
     }
     loadInvoices();
+    return path;
   }
 
   async function deleteInvoice(id, number) {
@@ -2624,6 +2618,69 @@
       showToast('Orçamento enviado com sucesso!');
     }
     loadQuotes();
+  }
+
+  // ---------- Enviar invoice por email ----------
+  // Pode usar o mesmo template do orçamento ou criar um específico em emailjs.com
+  const EMAILJS_TEMPLATE_ID_INVOICE = 'COLE_AQUI_SEU_TEMPLATE_ID_DE_INVOICE';
+
+  async function sendInvoiceEmail(invoice) {
+    const clientEmail = invoice.clients?.email;
+
+    if (!isValidEmail(clientEmail)) {
+      showToast('Email do cliente inválido ou não cadastrado. Verifique o cadastro do cliente.');
+      return;
+    }
+
+    if (EMAILJS_PUBLIC_KEY === 'COLE_AQUI_SUA_PUBLIC_KEY') {
+      showToast('Envio de email ainda não configurado (faltam as chaves do EmailJS).');
+      return;
+    }
+
+    const templateId = EMAILJS_TEMPLATE_ID_INVOICE !== 'COLE_AQUI_SEU_TEMPLATE_ID_DE_INVOICE'
+      ? EMAILJS_TEMPLATE_ID_INVOICE
+      : EMAILJS_TEMPLATE_ID; // fallback: reaproveita o template do orçamento se não configurar um específico
+
+    showToast('Enviando invoice...');
+
+    let pdfPath = invoice.pdf_path;
+    if (!pdfPath) {
+      pdfPath = await generateAndStoreInvoicePdf(invoice);
+      if (!pdfPath) {
+        showToast('Erro ao gerar PDF para envio.');
+        return;
+      }
+    }
+
+    const { data: signedData, error: signError } = await sb.storage
+      .from('invoice-pdfs')
+      .createSignedUrl(pdfPath, 60 * 60 * 24 * 7);
+
+    if (signError) {
+      showToast('Erro ao gerar link do PDF: ' + signError.message);
+      return;
+    }
+
+    try {
+      await emailjs.send(EMAILJS_SERVICE_ID, templateId, {
+        to_email: clientEmail,
+        to_name: invoice.clients?.name || '',
+        quote_number: invoice.invoice_number,
+        quote_amount: new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(invoice.amount),
+        pdf_link: signedData.signedUrl,
+      });
+    } catch (err) {
+      showToast('Erro ao enviar email: ' + (err?.text || err?.message || 'falha desconhecida'));
+      return;
+    }
+
+    const { error: updateError } = await sb.from('invoices').update({ status: 'sent' }).eq('id', invoice.id);
+    if (updateError) {
+      showToast('Email enviado, mas erro ao atualizar status: ' + updateError.message);
+    } else {
+      showToast('Invoice enviada com sucesso!');
+    }
+    loadInvoices();
   }
 
   // ---------- Expenses CRUD ----------

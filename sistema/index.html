@@ -725,7 +725,7 @@
               <th style="width:10%;">Valor</th>
               <th style="width:10%;">Data</th>
               <th style="width:9%;">Comprovante</th>
-              <th style="width:9%;"></th>
+              <th style="width:9%; white-space:nowrap;">Ações</th>
             </tr>
           </thead>
           <tbody id="expenses-tbody"></tbody>
@@ -758,11 +758,11 @@
           <thead>
             <tr>
               <th style="width:12%;">Data</th>
-              <th style="width:28%;">Descrição</th>
-              <th style="width:12%;">Valor</th>
-              <th style="width:10%;">Tipo</th>
-              <th style="width:22%;">Vínculo</th>
-              <th style="width:16%;"></th>
+              <th style="width:22%;">Descrição</th>
+              <th style="width:11%;">Valor</th>
+              <th style="width:9%;">Tipo</th>
+              <th style="width:18%;">Vínculo</th>
+              <th style="width:28%; white-space:nowrap;">Ações</th>
             </tr>
           </thead>
           <tbody id="bank-tbody"></tbody>
@@ -1734,10 +1734,10 @@
         <td><span class="status-badge status-${inv.status}">${statusLabels[inv.status]}</span></td>
         <td class="muted">${dueFmt}</td>
         <td>
-          <div class="row-actions">
-            <button class="pdf-btn">${inv.pdf_path ? 'Ver PDF' : 'Gerar PDF'}</button>
-            <button class="send-btn">Enviar</button>
-            <button class="edit-btn">Editar</button>
+          <div class="row-actions" style="flex-direction:row; flex-wrap:nowrap; gap:5px;">
+            <button class="pdf-btn" style="width:auto; padding:5px 8px; font-size:10px;">${inv.pdf_path ? 'Ver PDF' : 'Gerar PDF'}</button>
+            <button class="send-btn" style="width:auto; padding:5px 8px; font-size:10px;">Enviar</button>
+            <button class="edit-btn" style="width:auto; padding:5px 8px; font-size:10px;">Editar</button>
           </div>
         </td>
       `;
@@ -1755,14 +1755,41 @@
     submitBtn.disabled = true;
 
     const id = document.getElementById('i-id').value;
-    const payload = {
+    const existing = id ? (allInvoices.find(inv => inv.id === id) || {}) : {};
+
+    const newContent = {
       client_id: document.getElementById('i-client').value,
-      invoice_number: document.getElementById('i-number').value,
       description: document.getElementById('i-description').value.trim() || null,
       amount: amountToNumber(document.getElementById('i-amount').value),
-      status: document.getElementById('i-status').value,
       issue_date: document.getElementById('i-issue-date').value || null,
       due_date: document.getElementById('i-due-date').value || null,
+    };
+
+    // Verifica se algum campo de CONTEÚDO mudou (ignora status na comparação)
+    const contentChanged = !id || Object.keys(newContent).some(key => {
+      const oldVal = existing[key] ?? null;
+      const newVal = newContent[key] ?? null;
+      return String(oldVal) !== String(newVal);
+    });
+
+    // Só versiona (adiciona _v2, _v3...) se o conteúdo realmente mudou
+    let invoiceNumberToSave = document.getElementById('i-number').value;
+    let baseNumberToSave = invoiceNumberToSave;
+    let versionToSave = 1;
+
+    if (id) {
+      baseNumberToSave = existing.base_number || existing.invoice_number || invoiceNumberToSave;
+      versionToSave = existing.version || 1;
+      if (contentChanged) versionToSave += 1;
+      invoiceNumberToSave = versionToSave > 1 ? `${baseNumberToSave}_v${versionToSave}` : baseNumberToSave;
+    }
+
+    const payload = {
+      ...newContent,
+      invoice_number: invoiceNumberToSave,
+      base_number: baseNumberToSave,
+      version: versionToSave,
+      status: document.getElementById('i-status').value,
     };
 
     if (!payload.client_id) {
@@ -1784,8 +1811,31 @@
       showToast('Erro ao salvar: ' + error.message);
       return;
     }
+
+    // Só regenera o PDF se o conteúdo mudou (mudança só de status não precisa de PDF novo)
+    if (contentChanged) {
+      const { data: savedInvoice } = await sb
+        .from('invoices')
+        .select('*, clients(name, client_type, email, phone, address)')
+        .eq(id ? 'id' : 'invoice_number', id || payload.invoice_number)
+        .single();
+
+      if (savedInvoice) {
+        await generateAndStoreInvoicePdf(savedInvoice);
+      }
+    }
+
     closeInvoiceModal();
-    showToast(id ? 'Invoice atualizada.' : 'Invoice criada.');
+
+    let saveMessage;
+    if (!id) {
+      saveMessage = 'Invoice criada e PDF gerado.';
+    } else if (contentChanged) {
+      saveMessage = `Invoice atualizada (versão ${versionToSave}) e PDF regenerado.`;
+    } else {
+      saveMessage = 'Status atualizado. PDF mantido (sem alteração de conteúdo).';
+    }
+    showToast(saveMessage);
     loadInvoices();
   });
 
@@ -2814,9 +2864,9 @@
         <td class="muted">${dateFmt}</td>
         <td>${exp.receipt_path ? '<button class="receipt-btn">Ver</button>' : '<span class="muted">—</span>'}</td>
         <td>
-          <div class="row-actions">
-            <button class="edit-btn">Editar</button>
-            <button class="delete">Excluir</button>
+          <div class="row-actions" style="flex-direction:row; flex-wrap:nowrap; gap:6px;">
+            <button class="edit-btn" style="width:auto; padding:5px 12px;">Editar</button>
+            <button class="delete" style="width:auto; padding:5px 12px;">Excluir</button>
           </div>
         </td>
       `;
@@ -3020,13 +3070,14 @@
       } else if (tx.expense_id && tx.expenses) {
         linkLabel = `<span class="status-badge status-sent">${escapeHtml((tx.expenses.description || '').slice(0, 22))}</span>`;
       }
+      const btnStyle = 'width:auto; padding:5px 8px; font-size:10px;';
       let actionButton;
       if (isIncome) {
-        actionButton = `<button class="link-btn">${tx.invoice_id ? 'Trocar vínculo' : 'Vincular'}</button>`;
+        actionButton = `<button class="link-btn" style="${btnStyle}">${tx.invoice_id ? 'Trocar vínculo' : 'Vincular'}</button>`;
       } else if (tx.expense_id) {
-        actionButton = `<button class="link-btn">Trocar vínculo</button>`;
+        actionButton = `<button class="link-btn" style="${btnStyle}">Trocar vínculo</button>`;
       } else {
-        actionButton = `<button class="link-btn create-expense-btn">+ Incluir despesa</button>`;
+        actionButton = `<button class="link-btn create-expense-btn" style="${btnStyle}">+ Incluir despesa</button>`;
       }
       tr.innerHTML = `
         <td class="muted">${dateFmt}</td>
@@ -3035,10 +3086,10 @@
         <td><span class="status-badge ${isIncome ? 'status-paid' : 'status-overdue'}">${isIncome ? 'Entrada' : 'Saída'}</span></td>
         <td>${linkLabel}</td>
         <td>
-          <div class="row-actions">
+          <div class="row-actions" style="flex-direction:row; flex-wrap:wrap; gap:5px; justify-content:center;">
             ${actionButton}
-            <button class="edit-btn">Editar</button>
-            <button class="delete">Excluir</button>
+            <button class="edit-btn" style="width:auto; padding:5px 8px; font-size:10px;">Editar</button>
+            <button class="delete" style="width:auto; padding:5px 8px; font-size:10px;">Excluir</button>
           </div>
         </td>
       `;

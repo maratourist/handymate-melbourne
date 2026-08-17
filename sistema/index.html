@@ -2672,7 +2672,7 @@
 
   // ---------- Enviar invoice por email ----------
   // Pode usar o mesmo template do orçamento ou criar um específico em emailjs.com
-  const EMAILJS_TEMPLATE_ID_INVOICE = 'COLE_AQUI_SEU_TEMPLATE_ID_DE_INVOICE';
+  const EMAILJS_TEMPLATE_ID_INVOICE = 'template_thz92ho';
 
   async function sendInvoiceEmail(invoice) {
     const clientEmail = invoice.clients?.email;
@@ -2715,8 +2715,8 @@
       await emailjs.send(EMAILJS_SERVICE_ID, templateId, {
         to_email: clientEmail,
         to_name: invoice.clients?.name || '',
-        quote_number: invoice.invoice_number,
-        quote_amount: new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(invoice.amount),
+        invoice_number: invoice.invoice_number,
+        invoice_amount: new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(invoice.amount),
         pdf_link: signedData.signedUrl,
       });
     } catch (err) {

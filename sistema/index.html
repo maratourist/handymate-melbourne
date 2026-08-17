@@ -240,6 +240,8 @@
   .row-actions button.delete:hover { background: #f7d9d3; }
   .row-actions button.pdf-btn { background: #fbe6d1; color: var(--amber-dark); }
   .row-actions button.pdf-btn:hover { background: #d3f0eb; }
+  .row-actions button.send-btn { background: #e3f1e8; color: var(--green); }
+  .row-actions button.send-btn:hover { background: #d1e8d9; }
 
   /* ---------- Modal ---------- */
   .modal-overlay {
@@ -674,13 +676,12 @@
         <table>
           <thead>
             <tr>
-              <th style="width:15%;">Número</th>
-              <th style="width:15%;">Cliente</th>
-              <th style="width:19%;">Descrição</th>
-              <th style="width:11%;">Valor</th>
-              <th style="width:10%;">Status</th>
-              <th style="width:10%;">Válido até</th>
-              <th style="width:20%; white-space:nowrap;"></th>
+              <th style="width:20%;">Número</th>
+              <th style="width:20%;">Cliente</th>
+              <th style="width:15%;">Valor</th>
+              <th style="width:13%;">Status</th>
+              <th style="width:14%;">Válido até</th>
+              <th style="width:18%; white-space:nowrap;">Ações</th>
             </tr>
           </thead>
           <tbody id="quotes-tbody"></tbody>
@@ -1875,7 +1876,7 @@
 
     try {
       const logoData = await loadImageAsDataURL('logo-invoice.png');
-      doc.addImage(logoData, 'PNG', marginX, 28, 66, 66);
+      doc.addImage(logoData, 'PNG', marginX, 34, 70, 53.2);
     } catch (e) {
       try {
         const logoData = await loadImageAsDataURL('logo.jpg');
@@ -2212,32 +2213,23 @@
       const tr = document.createElement('tr');
       const amountFmt = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(q.amount);
       const validFmt = q.valid_until ? new Date(q.valid_until + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
-      const descText = q.description || '';
-      const isTruncated = descText.length > 40;
-      const descPreview = isTruncated ? descText.slice(0, 40) + '…' : (descText || '—');
       tr.innerHTML = `
         <td>${escapeHtml(q.quote_number)}</td>
         <td>${escapeHtml(q.clients?.name || '—')}</td>
-        <td class="muted" style="${isTruncated ? 'cursor:pointer; text-decoration:underline dotted;' : ''}">${escapeHtml(descPreview)}</td>
         <td>${amountFmt}</td>
         <td><span class="status-badge status-${q.status}">${quoteStatusLabels[q.status]}</span></td>
         <td class="muted">${validFmt}</td>
         <td>
-          <div class="row-actions">
-            <button class="pdf-btn">Ver PDF</button>
-            <button class="send-btn">Enviar</button>
-            <button class="edit-btn">Editar</button>
-            <button class="delete">Excluir</button>
+          <div class="row-actions" style="flex-direction:row; flex-wrap:nowrap; gap:5px;">
+            <button class="pdf-btn" style="width:auto; padding:5px 8px; font-size:10px;">Ver PDF</button>
+            <button class="send-btn" style="width:auto; padding:5px 8px; font-size:10px;">Enviar</button>
+            <button class="edit-btn" style="width:auto; padding:5px 8px; font-size:10px;">Editar</button>
           </div>
         </td>
       `;
-      if (isTruncated) {
-        tr.querySelector('td.muted').addEventListener('click', () => openDescModal(descText));
-      }
       tr.querySelector('.pdf-btn').addEventListener('click', () => handleQuotePdfClick(q));
       tr.querySelector('.send-btn').addEventListener('click', () => sendQuoteEmail(q));
       tr.querySelector('.edit-btn').addEventListener('click', () => openQuoteModal(q));
-      tr.querySelector('.delete').addEventListener('click', () => deleteQuote(q.id, q.quote_number));
       quotesTbody.appendChild(tr);
     });
   }
@@ -2350,7 +2342,7 @@
 
     try {
       const logoData = await loadImageAsDataURL('logo-invoice.png');
-      doc.addImage(logoData, 'PNG', marginX, 28, 66, 66);
+      doc.addImage(logoData, 'PNG', marginX, 34, 70, 53.2);
     } catch (e) {
       try {
         const logoData = await loadImageAsDataURL('logo.jpg');

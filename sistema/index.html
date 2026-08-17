@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
   :root {
     --navy: #1a1a1a;
@@ -1556,19 +1557,19 @@
 
   async function generateInvoiceNumber(clientName) {
     const abbr = clientAbbreviation(clientName);
+    // Sequencial GLOBAL: olha todas as invoices já criadas, não importa o cliente
     const { data, error } = await sb
       .from('invoices')
-      .select('invoice_number')
-      .ilike('invoice_number', `INV-${abbr}-%`);
+      .select('invoice_number');
 
-    let maxSeq = 0;
+    let maxSeq = 100; // começa em 00101
     if (!error && data) {
       data.forEach(row => {
         const match = row.invoice_number.match(/-(\d+)$/);
         if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
       });
     }
-    const nextSeq = String(maxSeq + 1).padStart(3, '0');
+    const nextSeq = String(maxSeq + 1).padStart(5, '0');
     return `INV-${abbr}-${nextSeq}`;
   }
 
@@ -1685,7 +1686,7 @@
     const showAll = document.getElementById('show-all-invoices').checked;
     let query = sb
       .from('invoices')
-      .select('*, clients(name, client_type)')
+      .select('*, clients(name, client_type, email, phone, address)')
       .order('created_at', { ascending: false });
 
     if (!showAll) {
@@ -1874,24 +1875,29 @@
 
     try {
       const logoData = await loadImageAsDataURL('logo-invoice.png');
-      doc.addImage(logoData, 'PNG', marginX, 30, 62, 62);
+      doc.addImage(logoData, 'PNG', marginX, 28, 66, 66);
     } catch (e) {
       try {
         const logoData = await loadImageAsDataURL('logo.jpg');
-        doc.addImage(logoData, 'JPEG', marginX, 30, 55, 55);
-      } catch (e2) { /* segue sem logo */ }
+        doc.addImage(logoData, 'JPEG', marginX, 28, 60, 60);
+      } catch (e2) {
+        try {
+          const logoData = await loadImageAsDataURL('logo-full.jpg');
+          doc.addImage(logoData, 'JPEG', marginX, 28, 60, 60);
+        } catch (e3) { /* segue sem logo */ }
+      }
     }
 
-    doc.setFontSize(13);
+    doc.setFontSize(19);
     doc.setTextColor(...dark);
     doc.setFont(undefined, 'bold');
-    doc.text('Handymate Melbourne', marginX + 72, 50);
+    doc.text('Handymate Melbourne', marginX + 78, 52);
 
     doc.setFontSize(8.5);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(...muted);
-    doc.text('0449 884 908  ·  Handymatemelbourne@gmail.com', marginX + 72, 63);
-    doc.text('@handymate.melbourne  ·  Oakleigh South, VIC', marginX + 72, 74);
+    doc.text('0449 884 908  ·  Handymatemelbourne@gmail.com', marginX + 78, 67);
+    doc.text('@handymate.melbourne  ·  Oakleigh South, VIC', marginX + 78, 78);
 
     doc.setFontSize(22);
     doc.setFont(undefined, 'bold');
@@ -1941,6 +1947,7 @@
     let billY = y + 30;
     if (invoice.clients?.email) { doc.text(invoice.clients.email, marginX, billY); billY += 12; }
     if (invoice.clients?.phone) { doc.text(invoice.clients.phone, marginX, billY); billY += 12; }
+    if (invoice.clients?.address) { doc.text(invoice.clients.address, marginX, billY); billY += 12; }
 
     // ---------- Tabela de itens ----------
     const { items, sum } = parseInvoiceItems(invoice.description, invoice.amount);
@@ -2010,11 +2017,11 @@
     doc.text('BSB: 065-004   ·   Account: 11254129', marginX + 14, payY + 53);
     doc.text('Reference: ' + invoice.invoice_number, marginX + 14, payY + 68);
 
-    // ---------- Rodapé ----------
+    // ---------- Rodapé (posição fixa, sempre abaixo da marca d'água) ----------
     doc.setFontSize(8.5);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(...muted);
-    doc.text('Handymate Melbourne — Thank you for your business!', marginX, payY + 110);
+    doc.text('Handymate Melbourne — Thank you for your business!', marginX, 780);
 
     const pdfBlob = doc.output('blob');
     const path = `${invoice.invoice_number}.pdf`;
@@ -2083,19 +2090,19 @@
 
   async function generateQuoteNumber(clientName) {
     const abbr = clientAbbreviationQuote(clientName);
+    // Sequencial GLOBAL: olha todos os orçamentos já criados, não importa o cliente
     const { data, error } = await sb
       .from('quotes')
-      .select('quote_number')
-      .ilike('quote_number', `QT-${abbr}-%`);
+      .select('quote_number');
 
-    let maxSeq = 0;
+    let maxSeq = 100; // começa em 00101
     if (!error && data) {
       data.forEach(row => {
         const match = row.quote_number.match(/-(\d+)$/);
         if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
       });
     }
-    const nextSeq = String(maxSeq + 1).padStart(3, '0');
+    const nextSeq = String(maxSeq + 1).padStart(5, '0');
     return `QT-${abbr}-${nextSeq}`;
   }
 
@@ -2144,7 +2151,11 @@
     } else {
       quoteModalTitle.textContent = 'Novo orçamento';
       document.getElementById('q-number').value = 'Selecione o cliente...';
-      document.getElementById('q-issue-date').value = new Date().toISOString().slice(0, 10);
+      const today = new Date();
+      const validUntil = new Date();
+      validUntil.setDate(validUntil.getDate() + 14);
+      document.getElementById('q-issue-date').value = today.toISOString().slice(0, 10);
+      document.getElementById('q-valid-until').value = validUntil.toISOString().slice(0, 10);
       document.getElementById('q-payment-terms').value = defaultPaymentTerms;
       document.getElementById('q-materials-note').value = defaultMaterialsNote;
       document.getElementById('q-scope-note').value = defaultScopeNote;
@@ -2171,7 +2182,7 @@
   async function loadQuotes() {
     const { data, error } = await sb
       .from('quotes')
-      .select('*, clients(name, client_type, email, phone)')
+      .select('*, clients(name, client_type, email, phone, address)')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -2213,7 +2224,8 @@
         <td class="muted">${validFmt}</td>
         <td>
           <div class="row-actions">
-            <button class="pdf-btn">${q.pdf_path ? 'Ver PDF' : 'Gerar PDF'}</button>
+            <button class="pdf-btn">Ver PDF</button>
+            <button class="send-btn">Enviar</button>
             <button class="edit-btn">Editar</button>
             <button class="delete">Excluir</button>
           </div>
@@ -2223,6 +2235,7 @@
         tr.querySelector('td.muted').addEventListener('click', () => openDescModal(descText));
       }
       tr.querySelector('.pdf-btn').addEventListener('click', () => handleQuotePdfClick(q));
+      tr.querySelector('.send-btn').addEventListener('click', () => sendQuoteEmail(q));
       tr.querySelector('.edit-btn').addEventListener('click', () => openQuoteModal(q));
       tr.querySelector('.delete').addEventListener('click', () => deleteQuote(q.id, q.quote_number));
       quotesTbody.appendChild(tr);
@@ -2268,8 +2281,20 @@
       showToast('Erro ao salvar: ' + error.message);
       return;
     }
+
+    // Busca o orçamento salvo (com dados do cliente) e já gera o PDF automaticamente
+    const { data: savedQuote } = await sb
+      .from('quotes')
+      .select('*, clients(name, client_type, email, phone, address)')
+      .eq(id ? 'id' : 'quote_number', id || payload.quote_number)
+      .single();
+
+    if (savedQuote) {
+      await generateQuotePdfSilently(savedQuote);
+    }
+
     closeQuoteModal();
-    showToast(id ? 'Orçamento atualizado.' : 'Orçamento criado.');
+    showToast(id ? 'Orçamento atualizado e PDF gerado.' : 'Orçamento criado e PDF gerado.');
     loadQuotes();
   });
 
@@ -2286,19 +2311,21 @@
 
   // ---------- Geração de PDF do orçamento ----------
   async function handleQuotePdfClick(quote) {
-    if (quote.pdf_path) {
-      const { data, error } = await sb.storage.from('quote-pdfs').createSignedUrl(quote.pdf_path, 120);
-      if (error) {
-        showToast('Erro ao abrir PDF: ' + error.message);
-        return;
-      }
-      window.open(data.signedUrl, '_blank');
+    if (!quote.pdf_path) {
+      showToast('Gerando PDF...');
+      const path = await generateQuotePdfSilently(quote);
+      if (!path) return;
+      quote.pdf_path = path;
+    }
+    const { data, error } = await sb.storage.from('quote-pdfs').createSignedUrl(quote.pdf_path, 120);
+    if (error) {
+      showToast('Erro ao abrir PDF: ' + error.message);
       return;
     }
-    await generateAndStoreQuotePdf(quote);
+    window.open(data.signedUrl, '_blank');
   }
 
-  async function generateAndStoreQuotePdf(quote) {
+  async function generateQuotePdfSilently(quote) {
     showToast('Gerando PDF...');
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -2323,23 +2350,28 @@
 
     try {
       const logoData = await loadImageAsDataURL('logo-invoice.png');
-      doc.addImage(logoData, 'PNG', marginX, 30, 62, 62);
+      doc.addImage(logoData, 'PNG', marginX, 28, 66, 66);
     } catch (e) {
       try {
         const logoData = await loadImageAsDataURL('logo.jpg');
-        doc.addImage(logoData, 'JPEG', marginX, 30, 55, 55);
-      } catch (e2) { /* segue sem logo */ }
+        doc.addImage(logoData, 'JPEG', marginX, 28, 60, 60);
+      } catch (e2) {
+        try {
+          const logoData = await loadImageAsDataURL('logo-full.jpg');
+          doc.addImage(logoData, 'JPEG', marginX, 28, 60, 60);
+        } catch (e3) { /* segue sem logo */ }
+      }
     }
 
-    doc.setFontSize(13);
+    doc.setFontSize(19);
     doc.setTextColor(...dark);
     doc.setFont(undefined, 'bold');
-    doc.text('Handymate Melbourne', marginX + 72, 50);
+    doc.text('Handymate Melbourne', marginX + 78, 52);
     doc.setFontSize(8.5);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(...muted);
-    doc.text('0449 884 908  ·  Handymatemelbourne@gmail.com', marginX + 72, 63);
-    doc.text('@handymate.melbourne  ·  Oakleigh South, VIC', marginX + 72, 74);
+    doc.text('0449 884 908  ·  Handymatemelbourne@gmail.com', marginX + 78, 67);
+    doc.text('@handymate.melbourne  ·  Oakleigh South, VIC', marginX + 78, 78);
 
     doc.setFontSize(22);
     doc.setFont(undefined, 'bold');
@@ -2387,6 +2419,7 @@
     let billY = y + 30;
     if (quote.clients?.email) { doc.text(quote.clients.email, marginX, billY); billY += 12; }
     if (quote.clients?.phone) { doc.text(quote.clients.phone, marginX, billY); billY += 12; }
+    if (quote.clients?.address) { doc.text(quote.clients.address, marginX, billY); billY += 12; }
 
     const { items, sum } = parseInvoiceItems(quote.description, quote.amount);
     let tableY = Math.max(billY + 20, y + 70);
@@ -2466,11 +2499,11 @@
     doc.text('Quote Total', pageWidth - marginX - 200, rowY);
     doc.text(new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(quote.amount), pageWidth - marginX, rowY, { align: 'right' });
 
-    rowY += 34;
+    // ---------- Rodapé (posição fixa, sempre abaixo da marca d'água) ----------
     doc.setFontSize(8.5);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(...muted);
-    doc.text('Handymate Melbourne — Thank you for considering us for your project!', marginX, rowY);
+    doc.text('Handymate Melbourne — Thank you for considering us for your project!', marginX, 780);
 
     const pdfBlob = doc.output('blob');
     const path = `${quote.quote_number}.pdf`;
@@ -2486,13 +2519,80 @@
 
     const { error: updateError } = await sb
       .from('quotes')
-      .update({ pdf_path: path, status: 'sent' })
+      .update({ pdf_path: path })
       .eq('id', quote.id);
 
     if (updateError) {
-      showToast('PDF salvo, mas erro ao atualizar status: ' + updateError.message);
+      showToast('PDF salvo, mas erro ao atualizar registro: ' + updateError.message);
+    }
+    return path;
+  }
+
+  // ---------- Enviar orçamento por email ----------
+  // Configuração do EmailJS — preencha com as chaves da sua conta em emailjs.com
+  const EMAILJS_PUBLIC_KEY = 'COLE_AQUI_SUA_PUBLIC_KEY';
+  const EMAILJS_SERVICE_ID = 'COLE_AQUI_SEU_SERVICE_ID';
+  const EMAILJS_TEMPLATE_ID = 'COLE_AQUI_SEU_TEMPLATE_ID';
+  if (window.emailjs && EMAILJS_PUBLIC_KEY !== 'COLE_AQUI_SUA_PUBLIC_KEY') {
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+  }
+
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '');
+  }
+
+  async function sendQuoteEmail(quote) {
+    const clientEmail = quote.clients?.email;
+
+    if (!isValidEmail(clientEmail)) {
+      showToast('Email do cliente inválido ou não cadastrado. Verifique o cadastro do cliente.');
+      return;
+    }
+
+    if (EMAILJS_PUBLIC_KEY === 'COLE_AQUI_SUA_PUBLIC_KEY') {
+      showToast('Envio de email ainda não configurado (faltam as chaves do EmailJS).');
+      return;
+    }
+
+    showToast('Enviando orçamento...');
+
+    // Garante que o PDF existe e pega um link válido por mais tempo (7 dias)
+    let pdfPath = quote.pdf_path;
+    if (!pdfPath) {
+      pdfPath = await generateQuotePdfSilently(quote);
+      if (!pdfPath) {
+        showToast('Erro ao gerar PDF para envio.');
+        return;
+      }
+    }
+
+    const { data: signedData, error: signError } = await sb.storage
+      .from('quote-pdfs')
+      .createSignedUrl(pdfPath, 60 * 60 * 24 * 7);
+
+    if (signError) {
+      showToast('Erro ao gerar link do PDF: ' + signError.message);
+      return;
+    }
+
+    try {
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_email: clientEmail,
+        to_name: quote.clients?.name || '',
+        quote_number: quote.quote_number,
+        quote_amount: new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(quote.amount),
+        pdf_link: signedData.signedUrl,
+      });
+    } catch (err) {
+      showToast('Erro ao enviar email: ' + (err?.text || err?.message || 'falha desconhecida'));
+      return;
+    }
+
+    const { error: updateError } = await sb.from('quotes').update({ status: 'sent' }).eq('id', quote.id);
+    if (updateError) {
+      showToast('Email enviado, mas erro ao atualizar status: ' + updateError.message);
     } else {
-      showToast('PDF gerado e orçamento marcado como Enviado.');
+      showToast('Orçamento enviado com sucesso!');
     }
     loadQuotes();
   }

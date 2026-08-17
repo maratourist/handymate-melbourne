@@ -1560,12 +1560,14 @@
     // Sequencial GLOBAL: olha todas as invoices já criadas, não importa o cliente
     const { data, error } = await sb
       .from('invoices')
-      .select('invoice_number');
+      .select('invoice_number, base_number');
 
     let maxSeq = 100; // começa em 00101
     if (!error && data) {
       data.forEach(row => {
-        const match = row.invoice_number.match(/-(\d+)$/);
+        // Usa o número BASE (sem sufixo _v2/_v3...) pra não perder a contagem em invoices editadas
+        const numberToCheck = row.base_number || row.invoice_number;
+        const match = numberToCheck.match(/-(\d+)$/);
         if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
       });
     }
@@ -2138,12 +2140,14 @@
     // Sequencial GLOBAL: olha todos os orçamentos já criados, não importa o cliente
     const { data, error } = await sb
       .from('quotes')
-      .select('quote_number');
+      .select('quote_number, base_number');
 
     let maxSeq = 100; // começa em 00101
     if (!error && data) {
       data.forEach(row => {
-        const match = row.quote_number.match(/-(\d+)$/);
+        // Usa o número BASE (sem sufixo _v2/_v3...) pra não perder a contagem em orçamentos editados
+        const numberToCheck = row.base_number || row.quote_number;
+        const match = numberToCheck.match(/-(\d+)$/);
         if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
       });
     }

@@ -547,16 +547,16 @@
           <p>Cadastro e manutenção da carteira de clientes.</p>
         </button>
 
-        <button class="menu-card" id="card-invoices">
-          <div class="icon">🧾</div>
-          <h3>Invoices</h3>
-          <p>Criar, enviar e acompanhar status de invoices (rascunho, enviada, paga, atrasada).</p>
-        </button>
-
         <button class="menu-card" id="card-quotes">
           <div class="icon">📝</div>
           <h3>Orçamentos</h3>
           <p>Criar e enviar orçamentos (quotes) para clientes, com PDF automático e acompanhamento de status.</p>
+        </button>
+
+        <button class="menu-card" id="card-invoices">
+          <div class="icon">🧾</div>
+          <h3>Invoices</h3>
+          <p>Criar, enviar e acompanhar status de invoices (rascunho, enviada, paga, atrasada).</p>
         </button>
 
         <button class="menu-card" id="card-expenses">
@@ -1003,6 +1003,21 @@
         <div class="full">
           <label for="q-description">Descrição do serviço</label>
           <textarea id="q-description" rows="4" placeholder="Um item por linha, ex:&#10;Reparo torneira cozinha $80&#10;Instalação luminária sala $120" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:10px; font-size:14px; margin-bottom:16px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+
+        <div class="full">
+          <label for="q-payment-terms">Condições de pagamento</label>
+          <textarea id="q-payment-terms" rows="2" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:10px; font-size:13px; margin-bottom:16px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+
+        <div class="full">
+          <label for="q-materials-note">Materiais</label>
+          <textarea id="q-materials-note" rows="2" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:10px; font-size:13px; margin-bottom:16px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+
+        <div class="full">
+          <label for="q-scope-note">Observação sobre escopo</label>
+          <textarea id="q-scope-note" rows="3" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:10px; font-size:13px; margin-bottom:16px; font-family:inherit; resize:vertical;"></textarea>
         </div>
       </div>
 
@@ -1846,6 +1861,17 @@
     const lightRow = [245, 243, 238]; // F5F3EE
 
     // ---------- Header ----------
+    // Marca d'água central
+    try {
+      const watermarkData = await loadImageAsDataURL('logo-watermark.png');
+      const wmWidth = 340;
+      const wmHeight = wmWidth * (697 / 917);
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.5 }));
+      doc.addImage(watermarkData, 'PNG', (pageWidth - wmWidth) / 2, 330, wmWidth, wmHeight);
+      doc.restoreGraphicsState();
+    } catch (e) { /* segue sem marca d'água se não achar */ }
+
     try {
       const logoData = await loadImageAsDataURL('logo-invoice.png');
       doc.addImage(logoData, 'PNG', marginX, 30, 62, 62);
@@ -2073,6 +2099,10 @@
     return `QT-${abbr}-${nextSeq}`;
   }
 
+  const defaultPaymentTerms = 'A 50% deposit is required no later than 3 days prior to the commencement of works. The remaining balance is due upon completion.';
+  const defaultMaterialsNote = 'This quote covers labour only. All materials are to be supplied by the client unless otherwise agreed in writing.';
+  const defaultScopeNote = 'This quote is based on the information and site conditions known at the time of preparation. Any additional works, hidden issues, or existing problems identified once works commence will be assessed and quoted separately on a case-by-case basis.';
+
   async function openQuoteModal(quote = null) {
     quoteForm.reset();
     document.getElementById('q-id').value = '';
@@ -2108,10 +2138,16 @@
       document.getElementById('q-status').value = quote.status;
       document.getElementById('q-issue-date').value = quote.issue_date || '';
       document.getElementById('q-valid-until').value = quote.valid_until || '';
+      document.getElementById('q-payment-terms').value = quote.payment_terms || defaultPaymentTerms;
+      document.getElementById('q-materials-note').value = quote.materials_note || defaultMaterialsNote;
+      document.getElementById('q-scope-note').value = quote.scope_note || defaultScopeNote;
     } else {
       quoteModalTitle.textContent = 'Novo orçamento';
       document.getElementById('q-number').value = 'Selecione o cliente...';
       document.getElementById('q-issue-date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('q-payment-terms').value = defaultPaymentTerms;
+      document.getElementById('q-materials-note').value = defaultMaterialsNote;
+      document.getElementById('q-scope-note').value = defaultScopeNote;
     }
     quoteModal.classList.add('open');
   }
@@ -2208,6 +2244,9 @@
       status: document.getElementById('q-status').value,
       issue_date: document.getElementById('q-issue-date').value || null,
       valid_until: document.getElementById('q-valid-until').value || null,
+      payment_terms: document.getElementById('q-payment-terms').value.trim() || null,
+      materials_note: document.getElementById('q-materials-note').value.trim() || null,
+      scope_note: document.getElementById('q-scope-note').value.trim() || null,
     };
 
     if (!payload.client_id) {
@@ -2270,6 +2309,17 @@
     const dark = [26, 26, 24];
     const muted = [107, 101, 96];
     const lightRow = [245, 243, 238];
+
+    // Marca d'água central
+    try {
+      const watermarkData = await loadImageAsDataURL('logo-watermark.png');
+      const wmWidth = 340;
+      const wmHeight = wmWidth * (697 / 917);
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.5 }));
+      doc.addImage(watermarkData, 'PNG', (pageWidth - wmWidth) / 2, 330, wmWidth, wmHeight);
+      doc.restoreGraphicsState();
+    } catch (e) { /* segue sem marca d'água se não achar */ }
 
     try {
       const logoData = await loadImageAsDataURL('logo-invoice.png');
@@ -2370,7 +2420,34 @@
       rowY += rowHeight;
     });
 
-    rowY += 14;
+    // ---------- Terms ----------
+    rowY += 20;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...navy);
+    doc.text('TERMS', marginX, rowY);
+    rowY += 16;
+
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...dark);
+    const termsWidth = pageWidth - marginX * 2;
+
+    const paymentLines = doc.splitTextToSize(quote.payment_terms || '', termsWidth);
+    doc.text(paymentLines, marginX, rowY);
+    rowY += paymentLines.length * 11 + 8;
+
+    const materialsLines = doc.splitTextToSize(quote.materials_note || '', termsWidth);
+    doc.text(materialsLines, marginX, rowY);
+    rowY += materialsLines.length * 11 + 8;
+
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(...muted);
+    const scopeLines = doc.splitTextToSize(quote.scope_note || '', termsWidth);
+    doc.text(scopeLines, marginX, rowY);
+    rowY += scopeLines.length * 11 + 16;
+
+    // ---------- Totais ----------
     doc.setDrawColor(220, 228, 233);
     doc.setLineWidth(1);
     doc.line(pageWidth - marginX - 200, rowY, pageWidth - marginX, rowY);
@@ -2389,15 +2466,11 @@
     doc.text('Quote Total', pageWidth - marginX - 200, rowY);
     doc.text(new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(quote.amount), pageWidth - marginX, rowY, { align: 'right' });
 
-    rowY += 40;
-    doc.setFontSize(8.5);
-    doc.setFont(undefined, 'italic');
-    doc.setTextColor(...muted);
-    doc.text('This quote is an estimate and may be subject to change once work begins.', marginX, rowY);
-
+    rowY += 34;
     doc.setFontSize(8.5);
     doc.setFont(undefined, 'normal');
-    doc.text('Handymate Melbourne — Thank you for considering us for your project!', marginX, rowY + 30);
+    doc.setTextColor(...muted);
+    doc.text('Handymate Melbourne — Thank you for considering us for your project!', marginX, rowY);
 
     const pdfBlob = doc.output('blob');
     const path = `${quote.quote_number}.pdf`;

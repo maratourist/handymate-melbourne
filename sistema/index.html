@@ -501,6 +501,8 @@
   .status-paid { background: #fbe6d1; color: var(--amber-dark); }
   .status-overdue { background: #fbe4de; color: var(--red); }
   .status-cancelled { background: #eaf1f6; color: var(--muted); text-decoration: line-through; }
+  .status-accepted { background: #e3f1e8; color: var(--green); }
+  .status-declined { background: #fbe4de; color: var(--red); text-decoration: line-through; }
 </style>
 </head>
 <body>
@@ -549,6 +551,12 @@
           <div class="icon">🧾</div>
           <h3>Invoices</h3>
           <p>Criar, enviar e acompanhar status de invoices (rascunho, enviada, paga, atrasada).</p>
+        </button>
+
+        <button class="menu-card" id="card-quotes">
+          <div class="icon">📝</div>
+          <h3>Orçamentos</h3>
+          <p>Criar e enviar orçamentos (quotes) para clientes, com PDF automático e acompanhamento de status.</p>
         </button>
 
         <button class="menu-card" id="card-expenses">
@@ -646,6 +654,42 @@
         </div>
       </div>
     </div>
+    <!-- ===== VIEW: Orçamentos (Quotes) ===== -->
+    <div class="view" id="view-quotes">
+      <button class="back-link" id="back-to-home-quotes">← Menu principal</button>
+      <div class="section-header">
+        <h2>Orçamentos</h2>
+        <button class="btn-amber" id="new-quote-btn">+ Novo orçamento</button>
+      </div>
+      <div class="filters-row">
+        <input type="text" id="quote-client-search" placeholder="Buscar por cliente..." style="width:200px; margin:0;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400; color: var(--muted); margin:0;">
+          <input type="checkbox" id="show-all-quotes" style="width:auto; margin:0;">
+          Mostrar todos (inclui aceitos/negados)
+        </label>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:15%;">Número</th>
+              <th style="width:15%;">Cliente</th>
+              <th style="width:19%;">Descrição</th>
+              <th style="width:11%;">Valor</th>
+              <th style="width:10%;">Status</th>
+              <th style="width:10%;">Válido até</th>
+              <th style="width:20%; white-space:nowrap;"></th>
+            </tr>
+          </thead>
+          <tbody id="quotes-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="quotes-empty-state" style="display:none;">
+          Nenhum orçamento criado ainda.<br>Clique em "+ Novo orçamento" para começar.
+        </div>
+      </div>
+    </div>
+
     <!-- ===== VIEW: Despesas ===== -->
     <div class="view" id="view-expenses">
       <button class="back-link" id="back-to-home-3">← Menu principal</button>
@@ -908,6 +952,62 @@
       </select>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="cancel-modal">Cancelar</button>
+        <button type="submit" class="btn-amber">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ QUOTE MODAL ============ -->
+<div class="modal-overlay" id="quote-modal">
+  <div class="modal wide">
+    <h3 id="quote-modal-title">Novo orçamento</h3>
+    <form id="quote-form">
+      <input type="hidden" id="q-id">
+      <div class="form-grid">
+        <div class="full">
+          <label for="q-client">Cliente *</label>
+          <select id="q-client" required></select>
+        </div>
+
+        <div>
+          <label for="q-number">Número do orçamento</label>
+          <input type="text" id="q-number" readonly style="background:#f0eee9; color: var(--muted);">
+        </div>
+
+        <div>
+          <label for="q-amount">Valor (AUD) *</label>
+          <input type="text" id="q-amount" inputmode="decimal" required placeholder="$ 0,00">
+        </div>
+
+        <div>
+          <label for="q-status">Status</label>
+          <select id="q-status">
+            <option value="draft">Rascunho</option>
+            <option value="sent">Enviada</option>
+            <option value="accepted">Aceita</option>
+            <option value="declined">Negada</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="q-issue-date">Data de emissão</label>
+          <input type="date" id="q-issue-date">
+        </div>
+
+        <div>
+          <label for="q-valid-until">Válido até</label>
+          <input type="date" id="q-valid-until">
+        </div>
+
+        <div class="full">
+          <label for="q-description">Descrição do serviço</label>
+          <textarea id="q-description" rows="4" placeholder="Um item por linha, ex:&#10;Reparo torneira cozinha $80&#10;Instalação luminária sala $120" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:10px; font-size:14px; margin-bottom:16px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-quote-modal">Cancelar</button>
         <button type="submit" class="btn-amber">Salvar</button>
       </div>
     </form>
@@ -1224,6 +1324,13 @@
     loadInvoices();
   });
 
+  document.getElementById('card-quotes').addEventListener('click', () => {
+    switchView('view-quotes');
+    loadQuotes();
+  });
+
+  document.getElementById('back-to-home-quotes').addEventListener('click', goHome);
+
   document.getElementById('card-expenses').addEventListener('click', () => {
     switchView('view-expenses');
     loadExpenses();
@@ -1454,8 +1561,8 @@
     invoiceForm.reset();
     document.getElementById('i-id').value = '';
 
-    // Popular dropdown de clientes
-    const { data: clients, error } = await sb.from('clients').select('id, name').order('name');
+    // Popular dropdown de clientes (só ativos)
+    const { data: clients, error } = await sb.from('clients').select('id, name').eq('status', 'active').order('name');
     const select = document.getElementById('i-client');
     select.innerHTML = '<option value="">Selecione...</option>';
     if (!error && clients) {
@@ -1465,6 +1572,16 @@
         opt.textContent = c.name;
         select.appendChild(opt);
       });
+    }
+    // Se estiver editando uma invoice de um cliente já inativo, garante que ele apareça mesmo assim
+    if (invoice && invoice.client_id && !clients?.some(c => c.id === invoice.client_id)) {
+      const { data: inactiveClient } = await sb.from('clients').select('id, name').eq('id', invoice.client_id).single();
+      if (inactiveClient) {
+        const opt = document.createElement('option');
+        opt.value = inactiveClient.id;
+        opt.textContent = inactiveClient.name + ' (inativo)';
+        select.appendChild(opt);
+      }
     }
 
     if (invoice) {
@@ -1907,6 +2024,404 @@
     }
     showToast('Invoice excluída.');
     loadInvoices();
+  }
+
+  // ---------- Quotes (Orçamentos) CRUD ----------
+  const quotesTbody = document.getElementById('quotes-tbody');
+  const quotesEmptyState = document.getElementById('quotes-empty-state');
+  const quoteModal = document.getElementById('quote-modal');
+  const quoteForm = document.getElementById('quote-form');
+  const quoteModalTitle = document.getElementById('quote-modal-title');
+  const quoteStatusLabels = {
+    draft: 'Rascunho', sent: 'Enviada', accepted: 'Aceita', declined: 'Negada'
+  };
+  let allQuotes = [];
+
+  document.getElementById('new-quote-btn').addEventListener('click', () => openQuoteModal());
+  document.getElementById('cancel-quote-modal').addEventListener('click', () => closeQuoteModal());
+  quoteModal.addEventListener('click', (e) => { if (e.target === quoteModal) closeQuoteModal(); });
+  document.getElementById('quote-client-search').addEventListener('input', renderQuotesList);
+  document.getElementById('show-all-quotes').addEventListener('change', renderQuotesList);
+
+  const qAmountInput = document.getElementById('q-amount');
+  qAmountInput.addEventListener('input', () => {
+    let digits = qAmountInput.value.replace(/\D/g, '');
+    if (!digits) { qAmountInput.value = ''; return; }
+    const value = parseInt(digits, 10) / 100;
+    qAmountInput.value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(value);
+  });
+
+  function clientAbbreviationQuote(name) {
+    return clientAbbreviation(name); // reaproveita a função já usada nas invoices
+  }
+
+  async function generateQuoteNumber(clientName) {
+    const abbr = clientAbbreviationQuote(clientName);
+    const { data, error } = await sb
+      .from('quotes')
+      .select('quote_number')
+      .ilike('quote_number', `QT-${abbr}-%`);
+
+    let maxSeq = 0;
+    if (!error && data) {
+      data.forEach(row => {
+        const match = row.quote_number.match(/-(\d+)$/);
+        if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
+      });
+    }
+    const nextSeq = String(maxSeq + 1).padStart(3, '0');
+    return `QT-${abbr}-${nextSeq}`;
+  }
+
+  async function openQuoteModal(quote = null) {
+    quoteForm.reset();
+    document.getElementById('q-id').value = '';
+
+    const { data: clients, error } = await sb.from('clients').select('id, name').eq('status', 'active').order('name');
+    const select = document.getElementById('q-client');
+    select.innerHTML = '<option value="">Selecione...</option>';
+    if (!error && clients) {
+      clients.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        select.appendChild(opt);
+      });
+    }
+    if (quote && quote.client_id && !clients?.some(c => c.id === quote.client_id)) {
+      const { data: inactiveClient } = await sb.from('clients').select('id, name').eq('id', quote.client_id).single();
+      if (inactiveClient) {
+        const opt = document.createElement('option');
+        opt.value = inactiveClient.id;
+        opt.textContent = inactiveClient.name + ' (inativo)';
+        select.appendChild(opt);
+      }
+    }
+
+    if (quote) {
+      quoteModalTitle.textContent = 'Editar orçamento';
+      document.getElementById('q-id').value = quote.id;
+      select.value = quote.client_id;
+      document.getElementById('q-number').value = quote.quote_number;
+      document.getElementById('q-description').value = quote.description || '';
+      document.getElementById('q-amount').value = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(quote.amount);
+      document.getElementById('q-status').value = quote.status;
+      document.getElementById('q-issue-date').value = quote.issue_date || '';
+      document.getElementById('q-valid-until').value = quote.valid_until || '';
+    } else {
+      quoteModalTitle.textContent = 'Novo orçamento';
+      document.getElementById('q-number').value = 'Selecione o cliente...';
+      document.getElementById('q-issue-date').value = new Date().toISOString().slice(0, 10);
+    }
+    quoteModal.classList.add('open');
+  }
+
+  document.getElementById('q-client').addEventListener('change', async (e) => {
+    const isEditing = document.getElementById('q-id').value;
+    if (isEditing) return;
+    const clientName = e.target.selectedOptions[0]?.textContent;
+    if (!clientName || e.target.value === '') {
+      document.getElementById('q-number').value = '';
+      return;
+    }
+    document.getElementById('q-number').value = 'Gerando...';
+    document.getElementById('q-number').value = await generateQuoteNumber(clientName);
+  });
+
+  function closeQuoteModal() {
+    quoteModal.classList.remove('open');
+  }
+
+  async function loadQuotes() {
+    const { data, error } = await sb
+      .from('quotes')
+      .select('*, clients(name, client_type, email, phone)')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      showToast('Erro ao carregar orçamentos: ' + error.message);
+      return;
+    }
+    allQuotes = data || [];
+    renderQuotesList();
+  }
+
+  function renderQuotesList() {
+    const searchTerm = document.getElementById('quote-client-search').value.trim().toLowerCase();
+    const showAll = document.getElementById('show-all-quotes').checked;
+
+    let data = allQuotes;
+    if (!showAll) data = data.filter(q => ['draft', 'sent'].includes(q.status));
+    if (searchTerm) data = data.filter(q => (q.clients?.name || '').toLowerCase().includes(searchTerm));
+
+    quotesTbody.innerHTML = '';
+    if (!data || data.length === 0) {
+      quotesEmptyState.style.display = 'block';
+      return;
+    }
+    quotesEmptyState.style.display = 'none';
+
+    data.forEach(q => {
+      const tr = document.createElement('tr');
+      const amountFmt = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(q.amount);
+      const validFmt = q.valid_until ? new Date(q.valid_until + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+      const descText = q.description || '';
+      const isTruncated = descText.length > 40;
+      const descPreview = isTruncated ? descText.slice(0, 40) + '…' : (descText || '—');
+      tr.innerHTML = `
+        <td>${escapeHtml(q.quote_number)}</td>
+        <td>${escapeHtml(q.clients?.name || '—')}</td>
+        <td class="muted" style="${isTruncated ? 'cursor:pointer; text-decoration:underline dotted;' : ''}">${escapeHtml(descPreview)}</td>
+        <td>${amountFmt}</td>
+        <td><span class="status-badge status-${q.status}">${quoteStatusLabels[q.status]}</span></td>
+        <td class="muted">${validFmt}</td>
+        <td>
+          <div class="row-actions">
+            <button class="pdf-btn">${q.pdf_path ? 'Ver PDF' : 'Gerar PDF'}</button>
+            <button class="edit-btn">Editar</button>
+            <button class="delete">Excluir</button>
+          </div>
+        </td>
+      `;
+      if (isTruncated) {
+        tr.querySelector('td.muted').addEventListener('click', () => openDescModal(descText));
+      }
+      tr.querySelector('.pdf-btn').addEventListener('click', () => handleQuotePdfClick(q));
+      tr.querySelector('.edit-btn').addEventListener('click', () => openQuoteModal(q));
+      tr.querySelector('.delete').addEventListener('click', () => deleteQuote(q.id, q.quote_number));
+      quotesTbody.appendChild(tr);
+    });
+  }
+
+  quoteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = quoteForm.querySelector('button[type="submit"]');
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+
+    const id = document.getElementById('q-id').value;
+    const payload = {
+      client_id: document.getElementById('q-client').value,
+      quote_number: document.getElementById('q-number').value,
+      description: document.getElementById('q-description').value.trim() || null,
+      amount: amountToNumber(document.getElementById('q-amount').value),
+      status: document.getElementById('q-status').value,
+      issue_date: document.getElementById('q-issue-date').value || null,
+      valid_until: document.getElementById('q-valid-until').value || null,
+    };
+
+    if (!payload.client_id) {
+      showToast('Selecione um cliente.');
+      submitBtn.disabled = false;
+      return;
+    }
+
+    let error;
+    if (id) {
+      ({ error } = await sb.from('quotes').update(payload).eq('id', id));
+    } else {
+      ({ error } = await sb.from('quotes').insert(payload));
+    }
+
+    submitBtn.disabled = false;
+
+    if (error) {
+      showToast('Erro ao salvar: ' + error.message);
+      return;
+    }
+    closeQuoteModal();
+    showToast(id ? 'Orçamento atualizado.' : 'Orçamento criado.');
+    loadQuotes();
+  });
+
+  async function deleteQuote(id, number) {
+    if (!confirm(`Excluir o orçamento "${number}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await sb.from('quotes').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir: ' + error.message);
+      return;
+    }
+    showToast('Orçamento excluído.');
+    loadQuotes();
+  }
+
+  // ---------- Geração de PDF do orçamento ----------
+  async function handleQuotePdfClick(quote) {
+    if (quote.pdf_path) {
+      const { data, error } = await sb.storage.from('quote-pdfs').createSignedUrl(quote.pdf_path, 120);
+      if (error) {
+        showToast('Erro ao abrir PDF: ' + error.message);
+        return;
+      }
+      window.open(data.signedUrl, '_blank');
+      return;
+    }
+    await generateAndStoreQuotePdf(quote);
+  }
+
+  async function generateAndStoreQuotePdf(quote) {
+    showToast('Gerando PDF...');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 42;
+    const navy = [26, 26, 24];
+    const teal = [255, 122, 26];
+    const dark = [26, 26, 24];
+    const muted = [107, 101, 96];
+    const lightRow = [245, 243, 238];
+
+    try {
+      const logoData = await loadImageAsDataURL('logo-invoice.png');
+      doc.addImage(logoData, 'PNG', marginX, 30, 62, 62);
+    } catch (e) {
+      try {
+        const logoData = await loadImageAsDataURL('logo.jpg');
+        doc.addImage(logoData, 'JPEG', marginX, 30, 55, 55);
+      } catch (e2) { /* segue sem logo */ }
+    }
+
+    doc.setFontSize(13);
+    doc.setTextColor(...dark);
+    doc.setFont(undefined, 'bold');
+    doc.text('Handymate Melbourne', marginX + 72, 50);
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    doc.text('0449 884 908  ·  Handymatemelbourne@gmail.com', marginX + 72, 63);
+    doc.text('@handymate.melbourne  ·  Oakleigh South, VIC', marginX + 72, 74);
+
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...dark);
+    doc.text('QUOTE', pageWidth - marginX, 50, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    doc.text('ABN 63 850 772 754', pageWidth - marginX, 63, { align: 'right' });
+
+    const infoY = 108;
+    const infoBoxH = 46;
+    const colWidth = (pageWidth - marginX * 2) / 4;
+    const infoCols = [
+      { label: 'QUOTE NO.', value: quote.quote_number, fill: teal },
+      { label: 'ISSUE DATE', value: quote.issue_date ? new Date(quote.issue_date + 'T00:00:00').toLocaleDateString('en-AU') : '—', fill: teal },
+      { label: 'VALID UNTIL', value: quote.valid_until ? new Date(quote.valid_until + 'T00:00:00').toLocaleDateString('en-AU') : '—', fill: teal },
+      { label: 'QUOTE TOTAL (AUD)', value: new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(quote.amount), fill: navy },
+    ];
+    infoCols.forEach((c, i) => {
+      const x = marginX + colWidth * i;
+      const gap = i === 0 ? 0 : 3;
+      doc.setFillColor(...c.fill);
+      doc.roundedRect(x + (i>0?gap:0), infoY, colWidth - gap, infoBoxH, 6, 6, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(255,255,255);
+      doc.text(c.label, x + 12, infoY + 18);
+      doc.setFontSize(11.5);
+      doc.text(String(c.value), x + 12, infoY + 35);
+    });
+
+    let y = infoY + infoBoxH + 30;
+    doc.setFontSize(7.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...muted);
+    doc.text('QUOTE FOR', marginX, y);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...dark);
+    doc.text(quote.clients?.name || '—', marginX, y + 16);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    let billY = y + 30;
+    if (quote.clients?.email) { doc.text(quote.clients.email, marginX, billY); billY += 12; }
+    if (quote.clients?.phone) { doc.text(quote.clients.phone, marginX, billY); billY += 12; }
+
+    const { items, sum } = parseInvoiceItems(quote.description, quote.amount);
+    let tableY = Math.max(billY + 20, y + 70);
+
+    doc.setFillColor(...navy);
+    doc.roundedRect(marginX, tableY, pageWidth - marginX * 2, 24, 4, 4, 'F');
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('DESCRIPTION', marginX + 12, tableY + 16);
+    doc.text('AMOUNT', pageWidth - marginX - 12, tableY + 16, { align: 'right' });
+
+    let rowY = tableY + 24;
+    items.forEach((item, idx) => {
+      const lines = doc.splitTextToSize(item.description, pageWidth - marginX * 2 - 75);
+      const rowHeight = Math.max(22, lines.length * 12 + 10);
+      if (idx % 2 === 0) {
+        doc.setFillColor(...lightRow);
+        doc.rect(marginX, rowY, pageWidth - marginX * 2, rowHeight, 'F');
+      }
+      doc.setFontSize(9.5);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(...dark);
+      doc.text(lines, marginX + 12, rowY + 14);
+      if (item.amount !== null) {
+        doc.text(
+          new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(item.amount),
+          pageWidth - marginX - 12, rowY + 14, { align: 'right' }
+        );
+      }
+      rowY += rowHeight;
+    });
+
+    rowY += 14;
+    doc.setDrawColor(220, 228, 233);
+    doc.setLineWidth(1);
+    doc.line(pageWidth - marginX - 200, rowY, pageWidth - marginX, rowY);
+    rowY += 20;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...muted);
+    doc.text('Subtotal', pageWidth - marginX - 200, rowY);
+    doc.setTextColor(...dark);
+    doc.text(new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(sum), pageWidth - marginX, rowY, { align: 'right' });
+
+    rowY += 22;
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...navy);
+    doc.text('Quote Total', pageWidth - marginX - 200, rowY);
+    doc.text(new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(quote.amount), pageWidth - marginX, rowY, { align: 'right' });
+
+    rowY += 40;
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(...muted);
+    doc.text('This quote is an estimate and may be subject to change once work begins.', marginX, rowY);
+
+    doc.setFontSize(8.5);
+    doc.setFont(undefined, 'normal');
+    doc.text('Handymate Melbourne — Thank you for considering us for your project!', marginX, rowY + 30);
+
+    const pdfBlob = doc.output('blob');
+    const path = `${quote.quote_number}.pdf`;
+
+    const { error: uploadError } = await sb.storage
+      .from('quote-pdfs')
+      .upload(path, pdfBlob, { contentType: 'application/pdf', upsert: true });
+
+    if (uploadError) {
+      showToast('Erro ao salvar PDF: ' + uploadError.message);
+      return;
+    }
+
+    const { error: updateError } = await sb
+      .from('quotes')
+      .update({ pdf_path: path, status: 'sent' })
+      .eq('id', quote.id);
+
+    if (updateError) {
+      showToast('PDF salvo, mas erro ao atualizar status: ' + updateError.message);
+    } else {
+      showToast('PDF gerado e orçamento marcado como Enviado.');
+    }
+    loadQuotes();
   }
 
   // ---------- Expenses CRUD ----------

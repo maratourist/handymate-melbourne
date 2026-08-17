@@ -95,14 +95,19 @@
     align-items: center;
     gap: 10px;
   }
-  .brand img { height: 50px; width: 50px; border-radius: 12px; object-fit: contain; background: #000; padding: 2px; }
+  .brand img { height: 54px; width: 54px; border-radius: 12px; object-fit: contain; background: #000; padding: 2px; }
   .brand-text {
     font-family: 'Anton', sans-serif;
-    font-size: 16px;
+    font-size: 20px;
     line-height: 1.05;
     text-transform: uppercase;
   }
-  .brand-text span { display: block; color: var(--orange); font-size: 10px; letter-spacing: 0.15em; }
+  .brand-text span { display: block; color: var(--orange); font-size: 12px; letter-spacing: 0.15em; }
+  @media (min-width: 640px) {
+    .brand img { height: 50px; width: 50px; }
+    .brand-text { font-size: 16px; }
+    .brand-text span { font-size: 10px; }
+  }
 
   nav ul {
     display: flex;
@@ -161,6 +166,57 @@
   nav { display: none; }
   @media (min-width: 900px) {
     nav { display: block; }
+  }
+
+  .hamburger-btn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 0;
+    align-items: center;
+  }
+  .hamburger-btn span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: #fff;
+    border-radius: 2px;
+    transition: transform 0.2s, opacity 0.2s;
+  }
+  .hamburger-btn.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .hamburger-btn.open span:nth-child(2) { opacity: 0; }
+  .hamburger-btn.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  @media (min-width: 900px) {
+    .hamburger-btn { display: none; }
+  }
+
+  .mobile-nav {
+    display: none;
+    flex-direction: column;
+    background: var(--black-2);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 3px solid var(--orange);
+  }
+  .mobile-nav.open { display: flex; }
+  .mobile-nav a {
+    padding: 16px 28px;
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .mobile-nav a:last-child { border-bottom: none; }
+  .mobile-nav a:active { color: var(--orange); }
+  @media (min-width: 900px) {
+    .mobile-nav { display: none !important; }
   }
 
   /* ---------- Hero ---------- */
@@ -510,8 +566,6 @@
 </head>
 <body>
 
-<div class="hazard"></div>
-
 <header>
   <div class="nav-wrap">
     <a href="#" class="brand">
@@ -528,7 +582,17 @@
     </nav>
     <div class="header-actions">
       <span class="phone-pill">📞 0449 884 908</span>
+      <button class="hamburger-btn" id="hamburger-btn" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
     </div>
+  </div>
+  <div class="mobile-nav" id="mobile-nav">
+    <a href="#services">Services</a>
+    <a href="#program">Maintenance Program</a>
+    <a href="#about">About</a>
+    <a href="#contact">Contact</a>
+    <a href="tel:0449884908" style="color:var(--orange);">📞 Call 0449 884 908</a>
   </div>
 </header>
 
@@ -737,8 +801,6 @@
   </div>
 </section>
 
-<div class="hazard"></div>
-
 <!-- ================= FOOTER ================= -->
 <footer>
   <div class="container">
@@ -776,4 +838,18 @@
 </footer>
 
 </body>
+<script>
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const mobileNav = document.getElementById('mobile-nav');
+  hamburgerBtn.addEventListener('click', () => {
+    hamburgerBtn.classList.toggle('open');
+    mobileNav.classList.toggle('open');
+  });
+  mobileNav.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      hamburgerBtn.classList.remove('open');
+      mobileNav.classList.remove('open');
+    });
+  });
+</script>
 </html>

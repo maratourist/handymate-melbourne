@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
   :root {
     --navy: #1a1a1a;
@@ -532,6 +533,7 @@
   <header class="topbar">
     <h1>Handy<span>Mate</span> · Financeiro</h1>
     <div style="display:flex; gap:10px;">
+      <button class="logout-btn" id="backup-btn" style="background:rgba(255,255,255,0.06);">Fazer backup</button>
       <button class="logout-btn" id="change-password-btn" style="background:rgba(255,255,255,0.06);">Mudar senha</button>
       <button class="logout-btn" id="logout-btn">Sair</button>
     </div>
@@ -1255,6 +1257,84 @@
   logoutBtn.addEventListener('click', async () => {
     await sb.auth.signOut();
     location.reload();
+  });
+
+  // ---------- Backup completo (CSVs das tabelas + arquivos dos buckets em .zip) ----------
+  function convertToCSV(rows) {
+    if (!rows || rows.length === 0) return '';
+    const headers = Object.keys(rows[0]);
+    const escapeCell = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+    const lines = [headers.join(',')];
+    rows.forEach(row => {
+      lines.push(headers.map(h => escapeCell(row[h])).join(','));
+    });
+    return lines.join('\n');
+  }
+
+  document.getElementById('backup-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('backup-btn');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const originalText = btn.textContent;
+
+    try {
+      const zip = new JSZip();
+      const csvFolder = zip.folder('tabelas-csv');
+      const filesFolder = zip.folder('arquivos');
+
+      const tables = ['clients', 'invoices', 'quotes', 'expenses', 'bank_transactions'];
+      for (const table of tables) {
+        btn.textContent = `Exportando ${table}...`;
+        const { data, error } = await sb.from(table).select('*');
+        if (error) {
+          showToast(`Erro ao exportar ${table}: ` + error.message);
+          continue;
+        }
+        csvFolder.file(`${table}.csv`, convertToCSV(data));
+      }
+
+      const buckets = ['invoice-pdfs', 'quote-pdfs', 'expense-receipts'];
+      for (const bucket of buckets) {
+        btn.textContent = `Baixando arquivos: ${bucket}...`;
+        const { data: fileList, error: listError } = await sb.storage.from(bucket).list();
+        if (listError || !fileList) continue;
+
+        const bucketFolder = filesFolder.folder(bucket);
+        for (const file of fileList) {
+          if (file.id === null) continue; // ignora "pastas" vazias
+          const { data: fileBlob, error: downloadError } = await sb.storage.from(bucket).download(file.name);
+          if (downloadError || !fileBlob) continue;
+          bucketFolder.file(file.name, fileBlob);
+        }
+      }
+
+      btn.textContent = 'Gerando arquivo .zip...';
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+      const today = new Date().toISOString().slice(0, 10);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `handymate-backup-${today}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast('Backup gerado e baixado com sucesso!');
+    } catch (err) {
+      showToast('Erro ao gerar backup: ' + (err?.message || 'falha desconhecida'));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
   });
 
   // ---------- Mudar senha ----------

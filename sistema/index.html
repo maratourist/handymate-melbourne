@@ -870,7 +870,9 @@
       <div class="dash-card">
         <h3>Despesas por categoria</h3>
         <div class="dash-split">
-          <canvas id="chart-expenses-category"></canvas>
+          <div style="max-width:280px; margin:0 auto; width:100%;">
+            <canvas id="chart-expenses-category"></canvas>
+          </div>
           <div style="overflow-x:auto;">
             <table style="width:100%;">
               <thead>
@@ -888,7 +890,21 @@
 
       <div class="dash-card">
         <h3>Faturamento por tipo de cliente</h3>
-        <canvas id="chart-revenue-client-type"></canvas>
+        <div class="dash-split">
+          <canvas id="chart-revenue-client-type"></canvas>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th style="width:50%;">Tipo de cliente</th>
+                  <th style="width:25%;">Valor</th>
+                  <th style="width:25%;">%</th>
+                </tr>
+              </thead>
+              <tbody id="revenue-client-type-table-body"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div class="dash-grid-2">
@@ -3505,8 +3521,10 @@
     fromSelect.innerHTML = options.join('');
     toSelect.innerHTML = options.join('');
 
-    // Padrão: Janeiro do ano atual até o mês atual
-    fromSelect.value = `${now.getFullYear()}-0`;
+    // Padrão: início do ano fiscal (julho) até o mês atual
+    // Se estivermos entre jan-jun, o ano fiscal começou em julho do ano ANTERIOR
+    const fiscalYearStartYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+    fromSelect.value = `${fiscalYearStartYear}-6`; // 6 = julho (índice 0-based)
     toSelect.value = `${now.getFullYear()}-${now.getMonth()}`;
 
     fromSelect.dataset.loaded = 'true';
@@ -3561,11 +3579,12 @@
     document.getElementById('kpi-payable').textContent = fmtAUD(expensesInPeriod);
 
     // ---------- Fluxo de caixa (todos os meses dentro do período selecionado) ----------
+    const monthAbbrevs = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const months = [];
     let cursor = new Date(fromYear, fromMonth, 1);
     while (cursor <= periodEnd) {
       months.push({
-        label: cursor.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        label: `${monthAbbrevs[cursor.getMonth()]} ${String(cursor.getFullYear()).slice(2)}`,
         month: cursor.getMonth(),
         year: cursor.getFullYear(),
       });
@@ -3604,22 +3623,22 @@
       }
     });
 
-    // Tabela com os números exatos, mês a mês
+    // Tabela com os números exatos, do mês mais recente para o mais antigo
     const cashflowTableBody = document.getElementById('cashflow-table-body');
-    cashflowTableBody.innerHTML = months.map((m, i) => {
-      const income = incomeByMonth[i];
-      const expense = expenseByMonth[i];
-      const saldo = income - expense;
-      const saldoColor = saldo >= 0 ? 'var(--green)' : 'var(--red)';
-      return `
-        <tr>
-          <td style="text-transform:capitalize;">${m.label}</td>
-          <td style="color:var(--green); font-weight:600;">${fmtAUD(income)}</td>
-          <td style="color:var(--red); font-weight:600;">${fmtAUD(expense)}</td>
-          <td style="color:${saldoColor}; font-weight:700;">${fmtAUD(saldo)}</td>
-        </tr>
-      `;
-    }).join('');
+    cashflowTableBody.innerHTML = months.map((m, i) => ({ m, income: incomeByMonth[i], expense: expenseByMonth[i] }))
+      .slice().reverse()
+      .map(({ m, income, expense }) => {
+        const saldo = income - expense;
+        const saldoColor = saldo >= 0 ? 'var(--green)' : 'var(--red)';
+        return `
+          <tr>
+            <td>${m.label}</td>
+            <td style="color:var(--green); font-weight:600;">${fmtAUD(income)}</td>
+            <td style="color:var(--red); font-weight:600;">${fmtAUD(expense)}</td>
+            <td style="color:${saldoColor}; font-weight:700;">${fmtAUD(saldo)}</td>
+          </tr>
+        `;
+      }).join('');
 
     // Só as transações conciliadas (vinculadas) entram nos gráficos "realizado" abaixo
     const reconciledExpenseTx = transactions.filter(t => t.amount < 0 && t.expense_id && t.expenses);
@@ -3696,6 +3715,23 @@
         scales: { x: { beginAtZero: true, ticks: { callback: (v) => fmtAUD(v) } } }
       }
     });
+
+    // Tabela com os números exatos por tipo de cliente
+    const revenueTypeTableBody = document.getElementById('revenue-client-type-table-body');
+    const revenueGrandTotal = Object.values(revenueByType).reduce((s, v) => s + v, 0);
+    const sortedTypes = Object.entries(revenueByType).sort((a, b) => b[1] - a[1]);
+    revenueTypeTableBody.innerHTML = sortedTypes.length
+      ? sortedTypes.map(([type, total], i) => {
+          const pct = revenueGrandTotal > 0 ? ((total / revenueGrandTotal) * 100).toFixed(1) : '0.0';
+          return `
+            <tr>
+              <td style="text-align:left;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${typeColors[i % typeColors.length]}; margin-right:8px;"></span>${escapeHtml(type)}</td>
+              <td>${fmtAUD(total)}</td>
+              <td>${pct}%</td>
+            </tr>
+          `;
+        }).join('')
+      : '<tr><td colspan="3" class="muted" style="padding:16px;">Nenhuma invoice conciliada ainda.</td></tr>';
 
     // ---------- Ranking de fornecedores (só conciliadas) ----------
     const supplierTotals = {};

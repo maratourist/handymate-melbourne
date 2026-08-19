@@ -503,6 +503,7 @@
   .status-draft { background: #eaf1f6; color: var(--muted); }
   .status-sent { background: #e3e1dc; color: var(--navy); }
   .status-paid { background: #fbe6d1; color: var(--amber-dark); }
+  .status-partial { background: #eee3f7; color: #7a4fa0; }
   .status-overdue { background: #fbe4de; color: var(--red); }
   .tx-badge-income { background: #dcefe3; color: var(--green); }
   .tx-badge-expense { background: #f6ddd7; color: var(--red); }
@@ -1619,7 +1620,7 @@
   const invoiceForm = document.getElementById('invoice-form');
   const invoiceModalTitle = document.getElementById('invoice-modal-title');
   const statusLabels = {
-    draft: 'Rascunho', sent: 'Enviada', paid: 'Paga',
+    draft: 'Rascunho', sent: 'Enviada', partial: 'Pagamento Parcial', paid: 'Paga',
     overdue: 'Atrasada', cancelled: 'Cancelada'
   };
 
@@ -3191,17 +3192,20 @@
         linkOrCreateBtn.addEventListener('click', () => openLinkModal(tx));
       }
       tr.querySelector('.edit-btn').addEventListener('click', () => openTransactionModal(tx));
-      tr.querySelector('.delete').addEventListener('click', () => deleteTransaction(tx.id));
+      tr.querySelector('.delete').addEventListener('click', () => deleteTransaction(tx));
       bankTbody.appendChild(tr);
     });
   }
 
-  async function deleteTransaction(id) {
+  async function deleteTransaction(tx) {
     if (!confirm('Excluir essa transação? Essa ação não pode ser desfeita.')) return;
-    const { error } = await sb.from('bank_transactions').delete().eq('id', id);
+    const { error } = await sb.from('bank_transactions').delete().eq('id', tx.id);
     if (error) {
       showToast('Erro ao excluir: ' + error.message);
       return;
+    }
+    if (tx.invoice_id) {
+      await recalcInvoiceStatus(tx.invoice_id);
     }
     showToast('Transação excluída.');
     loadTransactions();
@@ -3227,16 +3231,34 @@
     if (isIncome) {
       const { data } = await sb
         .from('invoices')
-        .select('id, invoice_number, amount, clients(name)')
+        .select('id, invoice_number, amount, status, clients(name)')
         .not('status', 'in', '(paid,cancelled)')
         .order('created_at', { ascending: false });
+
+      // Busca quanto já foi pago de cada invoice, pra mostrar o saldo restante no combo
+      const invoiceIds = (data || []).map(i => i.id);
+      let paidByInvoice = {};
+      if (invoiceIds.length > 0) {
+        const { data: txData } = await sb
+          .from('bank_transactions')
+          .select('invoice_id, amount')
+          .in('invoice_id', invoiceIds);
+        (txData || []).forEach(t => {
+          paidByInvoice[t.invoice_id] = (paidByInvoice[t.invoice_id] || 0) + Number(t.amount);
+        });
+      }
+
       const seen = new Set();
       (data || []).forEach(inv => {
         if (seen.has(inv.id)) return;
         seen.add(inv.id);
+        const paid = paidByInvoice[inv.id] || 0;
+        const remaining = Number(inv.amount) - paid;
         const opt = document.createElement('option');
         opt.value = inv.id;
-        opt.textContent = `${inv.invoice_number} — ${inv.clients?.name || ''} — $${inv.amount}`;
+        opt.textContent = paid > 0
+          ? `${inv.invoice_number} — ${inv.clients?.name || ''} — ${fmtAUD(remaining)} restante (de ${fmtAUD(inv.amount)})`
+          : `${inv.invoice_number} — ${inv.clients?.name || ''} — ${fmtAUD(inv.amount)}`;
         select.appendChild(opt);
       });
     } else {
@@ -3254,6 +3276,38 @@
     linkModal.classList.add('open');
   }
 
+  // Soma tudo que já foi vinculado a essa invoice e define o status certo automaticamente
+  async function recalcInvoiceStatus(invoiceId) {
+    const { data: invoice, error: invError } = await sb
+      .from('invoices')
+      .select('id, amount, status')
+      .eq('id', invoiceId)
+      .single();
+    if (invError || !invoice) return;
+
+    const { data: linkedTx } = await sb
+      .from('bank_transactions')
+      .select('amount')
+      .eq('invoice_id', invoiceId);
+
+    const totalPaid = (linkedTx || []).reduce((sum, t) => sum + Number(t.amount), 0);
+
+    let newStatus = invoice.status;
+    if (totalPaid >= Number(invoice.amount) && Number(invoice.amount) > 0) {
+      newStatus = 'paid';
+    } else if (totalPaid > 0) {
+      newStatus = 'partial';
+    } else if (['paid', 'partial'].includes(invoice.status)) {
+      // Não tem mais nada vinculado (ex: transação foi desvinculada/excluída) — volta a ficar em aberto
+      newStatus = 'sent';
+    }
+
+    if (newStatus !== invoice.status) {
+      await sb.from('invoices').update({ status: newStatus }).eq('id', invoiceId);
+    }
+    return { totalPaid, remaining: Number(invoice.amount) - totalPaid, status: newStatus };
+  }
+
   document.getElementById('confirm-link').addEventListener('click', async () => {
     const selectedId = document.getElementById('link-select').value;
     if (!selectedId || !linkingTx) {
@@ -3261,6 +3315,7 @@
       return;
     }
     const isIncome = linkingTx.amount >= 0;
+    const previousInvoiceId = linkingTx.invoice_id; // guarda pra recalcular se estava trocando de invoice
     const payload = isIncome
       ? { invoice_id: selectedId, expense_id: null }
       : { invoice_id: null, expense_id: selectedId };
@@ -3271,13 +3326,26 @@
       return;
     }
 
-    // Se vinculado a invoice, marca como paga automaticamente
+    // Se estava trocando de invoice, recalcula a antiga também (ela perdeu essa transação)
+    if (isIncome && previousInvoiceId && previousInvoiceId !== selectedId) {
+      await recalcInvoiceStatus(previousInvoiceId);
+    }
+
+    // Se vinculado a invoice, soma tudo já pago e define Parcial ou Paga automaticamente
     if (isIncome) {
-      await sb.from('invoices').update({ status: 'paid' }).eq('id', selectedId);
+      const result = await recalcInvoiceStatus(selectedId);
+      if (result && result.status === 'partial') {
+        showToast(`Vínculo salvo. Pagamento parcial — restam ${fmtAUD(result.remaining)}.`);
+      } else if (result && result.status === 'paid') {
+        showToast('Vínculo salvo. Invoice quitada — marcada como Paga!');
+      } else {
+        showToast('Vínculo salvo.');
+      }
+    } else {
+      showToast('Vínculo salvo.');
     }
 
     linkModal.classList.remove('open');
-    showToast('Vínculo salvo.');
     loadTransactions();
   });
 

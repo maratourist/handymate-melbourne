@@ -504,6 +504,12 @@
   .status-sent { background: #e3e1dc; color: var(--navy); }
   .status-paid { background: #fbe6d1; color: var(--amber-dark); }
   .status-overdue { background: #fbe4de; color: var(--red); }
+  .tx-badge-income { background: #dcefe3; color: var(--green); }
+  .tx-badge-expense { background: #f6ddd7; color: var(--red); }
+  tr.tx-row-income td { background: #f2f9f5; }
+  tr.tx-row-expense td { background: #fcf3f1; }
+  tr.tx-row-income:hover td { background: #e7f3ec; }
+  tr.tx-row-expense:hover td { background: #f8e8e3; }
   .status-cancelled { background: #eaf1f6; color: var(--muted); text-decoration: line-through; }
   .status-accepted { background: #e3f1e8; color: var(--green); }
   .status-declined { background: #fbe4de; color: var(--red); text-decoration: line-through; }
@@ -760,11 +766,11 @@
           <thead>
             <tr>
               <th style="width:12%;">Data</th>
-              <th style="width:22%;">Descrição</th>
-              <th style="width:11%;">Valor</th>
+              <th style="width:19%;">Descrição</th>
+              <th style="width:14%; white-space:nowrap;">Valor</th>
               <th style="width:9%;">Tipo</th>
-              <th style="width:18%;">Vínculo</th>
-              <th style="width:28%; white-space:nowrap;">Ações</th>
+              <th style="width:17%;">Vínculo</th>
+              <th style="width:26%; white-space:nowrap;">Ações</th>
             </tr>
           </thead>
           <tbody id="bank-tbody"></tbody>
@@ -3163,11 +3169,12 @@
       } else {
         actionButton = `<button class="link-btn create-expense-btn" style="${btnStyle}">+ Incluir despesa</button>`;
       }
+      tr.className = isIncome ? 'tx-row-income' : 'tx-row-expense';
       tr.innerHTML = `
         <td class="muted">${dateFmt}</td>
         <td>${escapeHtml(tx.description)}</td>
-        <td style="color:${isIncome ? 'var(--green)' : 'var(--red)'}; font-weight:600;">${isIncome ? '+' : '-'} ${amountFmt}</td>
-        <td><span class="status-badge ${isIncome ? 'status-paid' : 'status-overdue'}">${isIncome ? 'Entrada' : 'Saída'}</span></td>
+        <td style="color:${isIncome ? 'var(--green)' : 'var(--red)'}; font-weight:600; white-space:nowrap;">${isIncome ? '+' : '-'} ${amountFmt}</td>
+        <td><span class="status-badge ${isIncome ? 'tx-badge-income' : 'tx-badge-expense'}">${isIncome ? 'Entrada' : 'Saída'}</span></td>
         <td>${linkLabel}</td>
         <td>
           <div class="row-actions" style="flex-direction:row; flex-wrap:wrap; gap:5px; justify-content:center;">

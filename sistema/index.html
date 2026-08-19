@@ -843,7 +843,7 @@
           <span class="kpi-value" id="kpi-overdue">—</span>
         </div>
         <div class="kpi-card kpi-payable">
-          <span class="kpi-label">Gasto no período</span>
+          <span class="kpi-label">Gasto da empresa (período)</span>
           <span class="kpi-value" id="kpi-payable">—</span>
         </div>
       </div>
@@ -868,7 +868,7 @@
       </div>
 
       <div class="dash-card">
-        <h3>Despesas por categoria</h3>
+        <h3>Despesas da empresa por categoria</h3>
         <div class="dash-split">
           <div style="max-width:280px; margin:0 auto; width:100%;">
             <canvas id="chart-expenses-category"></canvas>
@@ -942,15 +942,15 @@
 
       <div id="dash-client-content" style="display:none;">
         <div class="kpi-grid">
-          <div class="kpi-card kpi-receivable">
+          <div class="kpi-card kpi-positive">
             <span class="kpi-label">Receita total</span>
             <span class="kpi-value" id="dc-revenue">—</span>
           </div>
-          <div class="kpi-card kpi-payable">
+          <div class="kpi-card kpi-negative">
             <span class="kpi-label">Custo total</span>
             <span class="kpi-value" id="dc-cost">—</span>
           </div>
-          <div class="kpi-card kpi-balance">
+          <div class="kpi-card" id="dc-net-card">
             <span class="kpi-label">Lucro líquido</span>
             <span class="kpi-value" id="dc-net">—</span>
           </div>
@@ -3510,13 +3510,19 @@
     if (fromSelect.dataset.loaded) return;
 
     const now = new Date();
+
+    // O sistema entrou em produção em Julho/2026 — não faz sentido oferecer meses antes disso
+    const SYSTEM_START_YEAR = 2026;
+    const SYSTEM_START_MONTH = 6; // julho (índice 0-based)
+
     const options = [];
-    // 36 meses pra trás dá margem suficiente pra escolher qualquer Janeiro recente
-    for (let i = 35; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const value = `${d.getFullYear()}-${d.getMonth()}`;
-      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    let cursor = new Date(SYSTEM_START_YEAR, SYSTEM_START_MONTH, 1);
+    const limit = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (cursor <= limit) {
+      const value = `${cursor.getFullYear()}-${cursor.getMonth()}`;
+      const label = cursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
       options.push(`<option value="${value}">${label.charAt(0).toUpperCase() + label.slice(1)}</option>`);
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
     fromSelect.innerHTML = options.join('');
     toSelect.innerHTML = options.join('');
@@ -3524,7 +3530,8 @@
     // Padrão: início do ano fiscal (julho) até o mês atual
     // Se estivermos entre jan-jun, o ano fiscal começou em julho do ano ANTERIOR
     const fiscalYearStartYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
-    fromSelect.value = `${fiscalYearStartYear}-6`; // 6 = julho (índice 0-based)
+    const fiscalStartValue = `${Math.max(fiscalYearStartYear, SYSTEM_START_YEAR)}-${fiscalYearStartYear >= SYSTEM_START_YEAR ? 6 : SYSTEM_START_MONTH}`;
+    fromSelect.value = fiscalStartValue;
     toSelect.value = `${now.getFullYear()}-${now.getMonth()}`;
 
     fromSelect.dataset.loaded = 'true';
@@ -3537,7 +3544,7 @@
 
     const [invoicesRes, txRes] = await Promise.all([
       sb.from('invoices').select('*, clients(name, client_type)'),
-      sb.from('bank_transactions').select('*, invoices(invoice_number, clients(name, client_type)), expenses(category, supplier, description)'),
+      sb.from('bank_transactions').select('*, invoices(invoice_number, clients(name, client_type)), expenses(category, supplier, description, client_id)'),
     ]);
 
     const invoices = invoicesRes.data || [];
@@ -3572,9 +3579,9 @@
       .reduce((sum, i) => sum + Number(i.amount), 0);
     document.getElementById('kpi-overdue').textContent = fmtAUD(overdue);
 
-    // "Realizado" — só transações conciliadas de saída, no período
+    // "Realizado" — só despesas da empresa conciliadas (exclui as vinculadas a cliente, que ele reembolsa depois)
     const expensesInPeriod = transactions
-      .filter(t => t.amount < 0)
+      .filter(t => t.amount < 0 && t.expense_id && t.expenses && !t.expenses.client_id)
       .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
     document.getElementById('kpi-payable').textContent = fmtAUD(expensesInPeriod);
 
@@ -3644,9 +3651,11 @@
     const reconciledExpenseTx = transactions.filter(t => t.amount < 0 && t.expense_id && t.expenses);
     const reconciledIncomeTx = transactions.filter(t => t.amount > 0 && t.invoice_id && t.invoices);
 
-    // ---------- Despesas por categoria (só conciliadas) ----------
+    // ---------- Despesas da EMPRESA por categoria (só conciliadas, sem cliente vinculado) ----------
+    // Despesas com cliente vinculado são custo de projeto (o cliente reembolsa depois) — não entram aqui
+    const companyExpenseTx = reconciledExpenseTx.filter(t => !t.expenses.client_id);
     const categoryTotals = {};
-    reconciledExpenseTx.forEach(t => {
+    companyExpenseTx.forEach(t => {
       const cat = t.expenses.category || 'Outros';
       categoryTotals[cat] = (categoryTotals[cat] || 0) + Math.abs(Number(t.amount));
     });
@@ -3866,6 +3875,9 @@
     document.getElementById('dc-revenue').textContent = fmtAUD(totalRevenue);
     document.getElementById('dc-cost').textContent = fmtAUD(totalCost);
     document.getElementById('dc-net').textContent = fmtAUD(net);
+    const netCard = document.getElementById('dc-net-card');
+    netCard.classList.remove('kpi-positive', 'kpi-negative');
+    netCard.classList.add(net >= 0 ? 'kpi-positive' : 'kpi-negative');
 
     const tbody = document.getElementById('dash-client-tbody');
     tbody.innerHTML = '';
@@ -3876,9 +3888,10 @@
         const isIncome = item.type === 'income';
         const dateFmt = item.date ? new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
         const tr = document.createElement('tr');
+        tr.className = isIncome ? 'tx-row-income' : 'tx-row-expense';
         tr.innerHTML = `
           <td class="muted">${dateFmt}</td>
-          <td><span class="status-badge ${isIncome ? 'status-paid' : 'status-overdue'}">${isIncome ? 'Entrada' : 'Saída'}</span></td>
+          <td><span class="status-badge ${isIncome ? 'tx-badge-income' : 'tx-badge-expense'}">${isIncome ? 'Entrada' : 'Saída'}</span></td>
           <td>${escapeHtml(item.description || '—')}</td>
           <td style="color:${isIncome ? 'var(--green)' : 'var(--red)'}; font-weight:600;">${isIncome ? '+' : '-'} ${fmtAUD(Math.abs(item.amount))}</td>
         `;

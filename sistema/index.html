@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
@@ -430,7 +431,9 @@
   .kpi-balance { background: linear-gradient(135deg, #1a1a1a, #3a3a3a); }
   .kpi-receivable { background: linear-gradient(135deg, #e6821e, #c76c12); }
   .kpi-overdue { background: linear-gradient(135deg, #b8442f, #8f3323); }
-  .kpi-payable { background: linear-gradient(135deg, #6b6560, #4a4640); }
+  .kpi-payable { background: linear-gradient(135deg, #b8442f, #8f3323); }
+  .kpi-positive { background: linear-gradient(135deg, #2f9e6f, #1f7a54); }
+  .kpi-negative { background: linear-gradient(135deg, #b8442f, #8f3323); }
 
   .dash-card {
     background: var(--card);
@@ -451,6 +454,15 @@
   }
   @media (max-width: 720px) {
     .dash-grid-2 { grid-template-columns: 1fr; }
+  }
+  .dash-split {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 24px;
+    align-items: center;
+  }
+  @media (max-width: 720px) {
+    .dash-split { grid-template-columns: 1fr; }
   }
 
   .rank-row {
@@ -808,13 +820,18 @@
       <button class="back-link" id="back-to-dash-menu-1">← Dashboard</button>
       <div class="section-header">
         <h2>Dashboard · Geral</h2>
-        <select id="dashboard-month" style="width:200px; margin:0;"></select>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <label style="font-size:13px; color:var(--muted); margin:0;">De</label>
+          <select id="dashboard-month-from" style="width:170px; margin:0;"></select>
+          <label style="font-size:13px; color:var(--muted); margin:0;">Até</label>
+          <select id="dashboard-month-to" style="width:170px; margin:0;"></select>
+        </div>
       </div>
 
       <!-- KPIs -->
       <div class="kpi-grid">
         <div class="kpi-card kpi-balance">
-          <span class="kpi-label">Saldo do mês</span>
+          <span class="kpi-label">Saldo do período</span>
           <span class="kpi-value" id="kpi-balance">—</span>
         </div>
         <div class="kpi-card kpi-receivable">
@@ -826,7 +843,7 @@
           <span class="kpi-value" id="kpi-overdue">—</span>
         </div>
         <div class="kpi-card kpi-payable">
-          <span class="kpi-label">Gasto no mês</span>
+          <span class="kpi-label">Gasto no período</span>
           <span class="kpi-value" id="kpi-payable">—</span>
         </div>
       </div>
@@ -835,22 +852,48 @@
       <div class="dash-card">
         <h3>Fluxo de caixa (últimos 6 meses)</h3>
         <canvas id="chart-cashflow" height="90"></canvas>
+        <div id="cashflow-table-wrap" style="margin-top:22px; overflow-x:auto;">
+          <table style="width:100%;">
+            <thead>
+              <tr>
+                <th style="width:25%;">Mês</th>
+                <th style="width:25%;">Entradas</th>
+                <th style="width:25%;">Saídas</th>
+                <th style="width:25%;">Saldo</th>
+              </tr>
+            </thead>
+            <tbody id="cashflow-table-body"></tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="dash-grid-2">
-        <div class="dash-card">
-          <h3>Despesas por categoria</h3>
+      <div class="dash-card">
+        <h3>Despesas por categoria</h3>
+        <div class="dash-split">
           <canvas id="chart-expenses-category"></canvas>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th style="width:50%;">Categoria</th>
+                  <th style="width:25%;">Valor</th>
+                  <th style="width:25%;">%</th>
+                </tr>
+              </thead>
+              <tbody id="expenses-category-table-body"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="dash-card">
-          <h3>Faturamento por tipo de cliente</h3>
-          <canvas id="chart-revenue-client-type"></canvas>
-        </div>
+      </div>
+
+      <div class="dash-card">
+        <h3>Faturamento por tipo de cliente</h3>
+        <canvas id="chart-revenue-client-type"></canvas>
       </div>
 
       <div class="dash-grid-2">
         <div class="dash-card">
-          <h3>Ranking de fornecedores</h3>
+          <h3>Despesas com fornecedores</h3>
           <div id="supplier-ranking"></div>
         </div>
         <div class="dash-card">
@@ -3445,24 +3488,34 @@
     return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(v || 0);
   }
 
-  function populateDashboardMonthSelect() {
-    const select = document.getElementById('dashboard-month');
-    if (select.dataset.loaded) return;
+  function populateDashboardRangeSelects() {
+    const fromSelect = document.getElementById('dashboard-month-from');
+    const toSelect = document.getElementById('dashboard-month-to');
+    if (fromSelect.dataset.loaded) return;
+
     const now = new Date();
     const options = [];
-    for (let i = 0; i < 12; i++) {
+    // 36 meses pra trás dá margem suficiente pra escolher qualquer Janeiro recente
+    for (let i = 35; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const value = `${d.getFullYear()}-${d.getMonth()}`;
       const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
       options.push(`<option value="${value}">${label.charAt(0).toUpperCase() + label.slice(1)}</option>`);
     }
-    select.innerHTML = options.join('');
-    select.dataset.loaded = 'true';
-    select.addEventListener('change', loadDashboard);
+    fromSelect.innerHTML = options.join('');
+    toSelect.innerHTML = options.join('');
+
+    // Padrão: Janeiro do ano atual até o mês atual
+    fromSelect.value = `${now.getFullYear()}-0`;
+    toSelect.value = `${now.getFullYear()}-${now.getMonth()}`;
+
+    fromSelect.dataset.loaded = 'true';
+    fromSelect.addEventListener('change', loadDashboard);
+    toSelect.addEventListener('change', loadDashboard);
   }
 
   async function loadDashboard() {
-    populateDashboardMonthSelect();
+    populateDashboardRangeSelects();
 
     const [invoicesRes, txRes] = await Promise.all([
       sb.from('invoices').select('*, clients(name, client_type)'),
@@ -3470,22 +3523,27 @@
     ]);
 
     const invoices = invoicesRes.data || [];
-    const transactions = txRes.data || [];
+    const allTransactions = txRes.data || [];
 
-    const now = new Date();
-    const selected = document.getElementById('dashboard-month').value.split('-');
-    const currentYear = parseInt(selected[0], 10);
-    const currentMonth = parseInt(selected[1], 10);
+    // ---------- Período selecionado ----------
+    const [fromYear, fromMonth] = document.getElementById('dashboard-month-from').value.split('-').map(Number);
+    const [toYear, toMonth] = document.getElementById('dashboard-month-to').value.split('-').map(Number);
+    const periodStart = new Date(fromYear, fromMonth, 1);
+    const periodEnd = new Date(toYear, toMonth + 1, 0); // último dia do mês final
+
+    const transactions = allTransactions.filter(t => {
+      const d = new Date(t.transaction_date + 'T00:00:00');
+      return d >= periodStart && d <= periodEnd;
+    });
 
     // ---------- KPIs ----------
-    const txThisMonth = transactions.filter(t => {
-      const d = new Date(t.transaction_date + 'T00:00:00');
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
-    const monthBalance = txThisMonth.reduce((sum, t) => sum + Number(t.amount), 0);
-    document.getElementById('kpi-balance').textContent = fmtAUD(monthBalance);
+    const periodBalance = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+    document.getElementById('kpi-balance').textContent = fmtAUD(periodBalance);
+    const balanceCard = document.getElementById('kpi-balance').closest('.kpi-card');
+    balanceCard.classList.remove('kpi-positive', 'kpi-negative', 'kpi-balance');
+    balanceCard.classList.add(periodBalance >= 0 ? 'kpi-positive' : 'kpi-negative');
 
-    // "Deveria" — baseado em invoice, independente de já ter sido conciliado
+    // "Deveria" — baseado em invoice, independente de já ter sido conciliado (não depende do período)
     const receivable = invoices
       .filter(i => ['draft', 'sent', 'overdue'].includes(i.status))
       .reduce((sum, i) => sum + Number(i.amount), 0);
@@ -3496,17 +3554,22 @@
       .reduce((sum, i) => sum + Number(i.amount), 0);
     document.getElementById('kpi-overdue').textContent = fmtAUD(overdue);
 
-    // "Realizado" — só transações conciliadas de saída, no mês
-    const expensesThisMonth = txThisMonth
+    // "Realizado" — só transações conciliadas de saída, no período
+    const expensesInPeriod = transactions
       .filter(t => t.amount < 0)
       .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
-    document.getElementById('kpi-payable').textContent = fmtAUD(expensesThisMonth);
+    document.getElementById('kpi-payable').textContent = fmtAUD(expensesInPeriod);
 
-    // ---------- Fluxo de caixa (6 meses terminando no mês selecionado) ----------
+    // ---------- Fluxo de caixa (todos os meses dentro do período selecionado) ----------
     const months = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(currentYear, currentMonth - i, 1);
-      months.push({ label: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), month: d.getMonth(), year: d.getFullYear() });
+    let cursor = new Date(fromYear, fromMonth, 1);
+    while (cursor <= periodEnd) {
+      months.push({
+        label: cursor.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        month: cursor.getMonth(),
+        year: cursor.getFullYear(),
+      });
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
     const incomeByMonth = months.map(m =>
       transactions.filter(t => {
@@ -3527,8 +3590,8 @@
       data: {
         labels: months.map(m => m.label),
         datasets: [
-          { label: 'Entradas', data: incomeByMonth, backgroundColor: '#e6821e', borderRadius: 6 },
-          { label: 'Saídas', data: expenseByMonth, backgroundColor: '#1a1a1a', borderRadius: 6 },
+          { label: 'Entradas', data: incomeByMonth, backgroundColor: '#2f9e6f', borderRadius: 6 },
+          { label: 'Saídas', data: expenseByMonth, backgroundColor: '#b8442f', borderRadius: 6 },
         ]
       },
       options: {
@@ -3541,6 +3604,23 @@
       }
     });
 
+    // Tabela com os números exatos, mês a mês
+    const cashflowTableBody = document.getElementById('cashflow-table-body');
+    cashflowTableBody.innerHTML = months.map((m, i) => {
+      const income = incomeByMonth[i];
+      const expense = expenseByMonth[i];
+      const saldo = income - expense;
+      const saldoColor = saldo >= 0 ? 'var(--green)' : 'var(--red)';
+      return `
+        <tr>
+          <td style="text-transform:capitalize;">${m.label}</td>
+          <td style="color:var(--green); font-weight:600;">${fmtAUD(income)}</td>
+          <td style="color:var(--red); font-weight:600;">${fmtAUD(expense)}</td>
+          <td style="color:${saldoColor}; font-weight:700;">${fmtAUD(saldo)}</td>
+        </tr>
+      `;
+    }).join('');
+
     // Só as transações conciliadas (vinculadas) entram nos gráficos "realizado" abaixo
     const reconciledExpenseTx = transactions.filter(t => t.amount < 0 && t.expense_id && t.expenses);
     const reconciledIncomeTx = transactions.filter(t => t.amount > 0 && t.invoice_id && t.invoices);
@@ -3551,10 +3631,13 @@
       const cat = t.expenses.category || 'Outros';
       categoryTotals[cat] = (categoryTotals[cat] || 0) + Math.abs(Number(t.amount));
     });
-    const categoryColors = ['#e6821e', '#1a5f7a', '#2f9e6f', '#8f3323', '#6b5b95', '#c76c12', '#4a4640'];
+    const categoryColors = ['#e6821e', '#1a5f7a', '#2f9e6f', '#8f3323', '#6b5b95', '#c76c12', '#4a4640', '#c2470f', '#3d8f7a'];
+    const categoryGrandTotal = Object.values(categoryTotals).reduce((s, v) => s + v, 0);
+
     if (expenseCategoryChartInstance) expenseCategoryChartInstance.destroy();
     expenseCategoryChartInstance = new Chart(document.getElementById('chart-expenses-category'), {
       type: 'doughnut',
+      plugins: [ChartDataLabels],
       data: {
         labels: Object.keys(categoryTotals),
         datasets: [{ data: Object.values(categoryTotals), backgroundColor: categoryColors }]
@@ -3563,10 +3646,31 @@
         responsive: true,
         plugins: {
           legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtAUD(ctx.parsed)}` } }
+          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtAUD(ctx.parsed)}` } },
+          datalabels: {
+            color: '#fff',
+            font: { weight: 'bold', size: 12 },
+            formatter: (value) => categoryGrandTotal > 0 ? `${Math.round((value / categoryGrandTotal) * 100)}%` : ''
+          }
         }
       }
     });
+
+    // Tabela com os números exatos por categoria
+    const categoryTableBody = document.getElementById('expenses-category-table-body');
+    const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+    categoryTableBody.innerHTML = sortedCategories.length
+      ? sortedCategories.map(([cat, total], i) => {
+          const pct = categoryGrandTotal > 0 ? ((total / categoryGrandTotal) * 100).toFixed(1) : '0.0';
+          return `
+            <tr>
+              <td style="text-align:left;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${categoryColors[i % categoryColors.length]}; margin-right:8px;"></span>${escapeHtml(cat)}</td>
+              <td>${fmtAUD(total)}</td>
+              <td>${pct}%</td>
+            </tr>
+          `;
+        }).join('')
+      : '<tr><td colspan="3" class="muted" style="padding:16px;">Nenhuma despesa conciliada ainda.</td></tr>';
 
     // ---------- Faturamento por tipo de cliente (só conciliadas) ----------
     const revenueByType = {};
@@ -3624,12 +3728,13 @@
       : '<p class="muted">Nenhuma invoice conciliada ainda.</p>';
 
     // ---------- Invoices vencendo em 7 dias ----------
+    const nowDate = new Date();
     const in7days = new Date();
     in7days.setDate(in7days.getDate() + 7);
     const upcoming = invoices.filter(i => {
       if (!i.due_date || !['draft', 'sent'].includes(i.status)) return false;
       const d = new Date(i.due_date + 'T00:00:00');
-      return d >= now && d <= in7days;
+      return d >= nowDate && d <= in7days;
     }).sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
     const upcomingEl = document.getElementById('upcoming-invoices');
     upcomingEl.innerHTML = upcoming.length
